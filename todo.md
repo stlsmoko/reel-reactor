@@ -25,3 +25,6 @@
 - [x] Remove every Expo VideoPlayer pause call that could run after a native player is released during navigation or record completion.
 - [x] Replace the ineffective overlay PanResponder behavior with native gesture-handler dragging on Android.
 - [x] Build an Android JavaScript bundle successfully after the crash and overlay interaction repairs.
+- [x] Repair the Android camera preview lifecycle with immediate permission request, camera mount status, and a native retry control.
+- [x] Build an Android bundle successfully after the camera preview lifecycle repair.
+- [ ] Confirm the repaired camera opens and can record a short take on the owner’s Android device.
