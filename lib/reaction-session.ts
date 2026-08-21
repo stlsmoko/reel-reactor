@@ -9,6 +9,7 @@ export type SourceVideo = {
 export type ReactionTake = {
   uri: string;
   recordedAt: number;
+  isComposite: boolean;
 };
 
 export type SharedLink = {

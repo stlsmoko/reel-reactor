@@ -34,3 +34,10 @@
 - [x] Replace the persistent non-recording reaction flow with explicit permission, camera-ready, recording, stopping, save, and native-error status feedback.
 - [x] Build an Android bundle successfully after the observable recording-state repair.
 - [ ] Confirm the live device progresses through Ready to react → Recording reaction → saved review after one short take.
+- [ ] Select and validate a maintained native render engine or a compatible Expo/React Native upgrade before implementing true picture-in-picture export.
+- [ ] Deliver one exported MP4 that visibly contains the chosen source video, the user-positioned front-camera reaction overlay, source audio, and reaction microphone audio.
+- [x] Upgrade the project to Expo 56 / React Native 0.85 and register the supported ffmpeg-expo native compositor plugin.
+- [x] Implement the on-device source scaling, positioned overlay, audio-mixing, composite MP4 review, save, and share flow.
+- [x] Verify the prebuild configuration includes the compositor plugin plus Android camera and microphone permissions.
+- [ ] Complete a standalone Android APK build and confirm a physical device renders the combined MP4 end to end.
+- [ ] Complete cloud APK compilation: local native compilation is blocked because this sandbox has no Android SDK installed, although native prebuild and compositor plugin registration complete successfully.

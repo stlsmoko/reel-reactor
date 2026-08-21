@@ -84,7 +84,7 @@ export default function ReactionStudioScreen() {
 
 const styles = StyleSheet.create({
   canvas: { backgroundColor: "#000000", flex: 1 },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(3, 6, 10, 0.16)" },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(3, 6, 10, 0.16)" },
   topBar: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 18, paddingTop: 5 },
   roundControl: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.72)", borderColor: "rgba(255,255,255,0.18)", borderRadius: 19, borderWidth: 1, height: 40, justifyContent: "center", width: 40 },
   controlPressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
