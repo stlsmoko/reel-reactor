@@ -18,7 +18,6 @@ export default function SourceSetupScreen() {
 
   useEffect(() => {
     if (!source) router.replace("/");
-    return () => { Promise.resolve(player.pause()).catch(() => undefined); };
   }, [player, source]);
 
   if (!source) return null;
@@ -60,7 +59,7 @@ export default function SourceSetupScreen() {
         {sharedLink ? <Text style={styles.linkNotice} numberOfLines={1}>Source link attached to this session</Text> : null}
 
         <View style={styles.actionDock}>
-          <Pressable onPress={() => router.push("/reaction-studio" as never)} style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
+          <Pressable onPress={() => router.push("/reaction-record" as never)} style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
             <MaterialIcons name="video-camera-front" size={22} color="#FFFFFF" />
             <Text style={styles.primaryButtonLabel}>Open reaction studio</Text>
           </Pressable>

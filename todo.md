@@ -22,3 +22,6 @@
 - [x] Replace the ambiguous Camera take control with a prominent Start recording button that clearly changes to Stop recording.
 - [x] Make the live camera bubble pass Android touch drags through the camera preview to the parent move gesture.
 - [ ] Confirm the revised record button, drag gesture, and resize handle on the owner’s Android device.
+- [x] Remove every Expo VideoPlayer pause call that could run after a native player is released during navigation or record completion.
+- [x] Replace the ineffective overlay PanResponder behavior with native gesture-handler dragging on Android.
+- [x] Build an Android JavaScript bundle successfully after the crash and overlay interaction repairs.

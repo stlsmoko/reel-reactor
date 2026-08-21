@@ -21,8 +21,7 @@ export default function ReactionStudioScreen() {
 
   useEffect(() => {
     if (!source) router.replace("/");
-    return () => player.pause();
-  }, [player, source]);
+  }, [source]);
 
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,

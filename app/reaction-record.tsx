@@ -3,7 +3,8 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { clampOverlay, type OverlayPosition } from "@/lib/reaction-project";
@@ -29,32 +30,29 @@ export default function ReactionRecordScreen() {
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const dragStart = useRef<OverlayPosition>(overlayPosition);
-  const sizeStart = useRef(overlaySize);
+  const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
 
   useEffect(() => {
     if (!source) router.replace("/");
-    return () => { Promise.resolve(player.pause()).catch(() => undefined); };
-  }, [player, source]);
+  }, [source]);
 
-  const dragResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: () => { dragStart.current = overlayPosition; },
-    onPanResponderMove: (_, gesture) => {
-      setOverlayPosition(clampOverlay({ x: dragStart.current.x + gesture.dx, y: dragStart.current.y + gesture.dy }, { width, height }, overlaySize));
-    },
-  }), [height, overlayPosition, overlaySize, width]);
+  useEffect(() => {
+    overlayPositionRef.current = overlayPosition;
+  }, [overlayPosition]);
 
-  const resizeResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { sizeStart.current = overlaySize; },
-    onPanResponderMove: (_, gesture) => {
-      const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, sizeStart.current + Math.max(gesture.dx, gesture.dy)));
-      setOverlaySize(nextSize);
-      setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
-    },
-  }), [height, overlaySize, width]);
+  const dragGesture = useMemo(() => Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(3)
+    .onBegin(() => { dragStart.current = overlayPositionRef.current; })
+    .onUpdate((event) => {
+      setOverlayPosition(clampOverlay({ x: dragStart.current.x + event.translationX, y: dragStart.current.y + event.translationY }, { width, height }, overlaySize));
+    }), [height, overlaySize, width]);
+
+  function cycleOverlaySize() {
+    const nextSize = overlaySize < 145 ? 168 : overlaySize < 180 ? MAX_OVERLAY_SIZE : MIN_OVERLAY_SIZE;
+    setOverlaySize(nextSize);
+    setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
+  }
 
   async function ensurePermissions() {
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -110,7 +108,6 @@ export default function ReactionRecordScreen() {
     } catch {
       Alert.alert("Recording stopped", "The camera could not finish this take. Please try again.");
     } finally {
-      player.pause();
       setIsRecording(false);
     }
   }
@@ -136,23 +133,25 @@ export default function ReactionRecordScreen() {
           </Pressable>
         </View> : null}
 
-        <View {...dragResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
-          {cameraPermission?.granted ? (
-            <CameraView ref={cameraRef} pointerEvents="none" style={styles.camera} facing={facing} mode="video" onCameraReady={() => setIsCameraReady(true)} />
-          ) : (
-            <View style={styles.permissionOverlay}>
-              <MaterialIcons name="video-camera-front" size={28} color="#FF8A6B" />
-              <Text style={styles.permissionOverlayText}>Tap a mode{`\n`}to enable camera</Text>
-            </View>
-          )}
-          {!isCleanScene ? <View {...resizeResponder.panHandlers} style={styles.resizeHandle}>
-            <MaterialIcons name="open-in-full" size={14} color="#FFFFFF" />
-          </View> : null}
-          {!isCleanScene ? <View pointerEvents="none" style={styles.dragBadge}>
-            <MaterialIcons name="open-with" size={13} color="#FFFFFF" />
-            <Text style={styles.dragBadgeLabel}>DRAG</Text>
-          </View> : null}
-        </View>
+        <GestureDetector gesture={dragGesture}>
+          <View style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
+            {cameraPermission?.granted ? (
+              <CameraView ref={cameraRef} pointerEvents="none" style={styles.camera} facing={facing} mode="video" onCameraReady={() => setIsCameraReady(true)} />
+            ) : (
+              <View pointerEvents="none" style={styles.permissionOverlay}>
+                <MaterialIcons name="video-camera-front" size={28} color="#FF8A6B" />
+                <Text style={styles.permissionOverlayText}>Tap Start recording{`\n`}to enable camera</Text>
+              </View>
+            )}
+            {!isCleanScene ? <Pressable onPress={cycleOverlaySize} style={({ pressed }) => [styles.resizeHandle, pressed && styles.resizePressed]}>
+              <MaterialIcons name="open-in-full" size={14} color="#FFFFFF" />
+            </Pressable> : null}
+            {!isCleanScene ? <View pointerEvents="none" style={styles.dragBadge}>
+              <MaterialIcons name="open-with" size={13} color="#FFFFFF" />
+              <Text style={styles.dragBadgeLabel}>DRAG</Text>
+            </View> : null}
+          </View>
+        </GestureDetector>
 
         {!isCleanScene ? <View style={styles.bottomDock}>
           <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : "Drag the camera bubble, then press Start recording"}</Text>
@@ -189,6 +188,7 @@ const styles = StyleSheet.create({
   permissionOverlay: { alignItems: "center", backgroundColor: "#171E2B", borderRadius: 999, flex: 1, justifyContent: "center", overflow: "hidden" },
   permissionOverlayText: { color: "#F7F8FA", fontSize: 10, fontWeight: "700", lineHeight: 14, marginTop: 5, textAlign: "center" },
   resizeHandle: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 2, bottom: -5, height: 28, justifyContent: "center", position: "absolute", right: -5, width: 28 },
+  resizePressed: { opacity: 0.7, transform: [{ scale: 0.93 }] },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
   bottomDock: { alignItems: "center", bottom: 0, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0 },
