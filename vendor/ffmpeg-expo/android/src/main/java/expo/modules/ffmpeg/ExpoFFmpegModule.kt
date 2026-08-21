@@ -9,8 +9,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class ExpoFFmpegModule : Module() {
     companion object {
-        init {
+        private val nativeLoadError: Throwable? = runCatching {
             System.loadLibrary("ffmpeg-jni")
+        }.exceptionOrNull()
+
+        private fun requireNativeLibrary() {
+            nativeLoadError?.let { error ->
+                throw IllegalStateException("The Reel Reactor video engine could not load on this phone: ${error.message}", error)
+            }
         }
     }
 
@@ -25,6 +31,7 @@ class ExpoFFmpegModule : Module() {
         AsyncFunction("run") { sessionId: String, args: List<String>, options: Map<String, Any?>, promise: Promise ->
             moduleScope.launch {
                 try {
+                    requireNativeLibrary()
                     val logLevel = (options["logLevel"] as? Number)?.toInt() ?: 24 // AV_LOG_WARNING
                     val env = options["environmentVariables"] as? Map<String, String>
 
@@ -90,6 +97,7 @@ class ExpoFFmpegModule : Module() {
         }
 
         Function("getVersion") {
+            requireNativeLibrary()
             FFmpegBridge.getVersion()
         }
 

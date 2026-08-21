@@ -45,6 +45,7 @@ export default function ReactionRecordScreen() {
   const overlaySizeRef = useRef(overlaySize);
   const pinchStartSize = useRef(overlaySize);
   const pinchStartDistance = useRef(0);
+  const isPinching = useRef(false);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -97,13 +98,15 @@ export default function ReactionRecordScreen() {
   // React Native invokes these responder callbacks after a touch event, never during render.
   // eslint-disable-next-line react-hooks/refs
   const overlayResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: (event) => !isRecording && !isCompositing && event.nativeEvent.touches.length > 1,
-    onMoveShouldSetPanResponder: (_, gestureState) => !isRecording && !isCompositing && (Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 3),
-    onMoveShouldSetPanResponderCapture: (event, gestureState) => !isRecording && !isCompositing && (event.nativeEvent.touches.length > 1 || Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 3),
+    onStartShouldSetPanResponder: () => !isRecording && !isCompositing,
+    onStartShouldSetPanResponderCapture: () => !isRecording && !isCompositing,
+    onMoveShouldSetPanResponder: () => !isRecording && !isCompositing,
+    onMoveShouldSetPanResponderCapture: () => !isRecording && !isCompositing,
     onPanResponderGrant: (event) => {
       dragStart.current = overlayPositionRef.current;
       pinchStartDistance.current = getTouchDistance(event.nativeEvent.touches);
       pinchStartSize.current = overlaySizeRef.current;
+      isPinching.current = pinchStartDistance.current > 0;
       if (pinchStartDistance.current > 0) {
         setOverlayGestureStatus("Resizing camera bubble");
       } else {
@@ -114,6 +117,13 @@ export default function ReactionRecordScreen() {
       const touchDistance = getTouchDistance(event.nativeEvent.touches);
 
       if (event.nativeEvent.touches.length > 1 && touchDistance > 0) {
+        if (!isPinching.current) {
+          isPinching.current = true;
+          pinchStartDistance.current = touchDistance;
+          pinchStartSize.current = overlaySizeRef.current;
+          setOverlayGestureStatus("Resizing camera bubble");
+          return;
+        }
         const baseline = pinchStartDistance.current || touchDistance;
         const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * (touchDistance / baseline))));
         overlaySizeRef.current = nextSize;
@@ -123,19 +133,20 @@ export default function ReactionRecordScreen() {
         return;
       }
 
+      if (isPinching.current) return;
       setOverlayPosition(clampOverlay({ x: dragStart.current.x + gestureState.dx, y: dragStart.current.y + gestureState.dy }, { width, height }, overlaySizeRef.current));
       setOverlayGestureStatus("Moving camera bubble");
     },
-    onPanResponderRelease: () => setOverlayGestureStatus("Camera bubble updated"),
-    onPanResponderTerminate: () => setOverlayGestureStatus("Camera bubble updated"),
+    onPanResponderRelease: () => {
+      isPinching.current = false;
+      setOverlayGestureStatus("Camera bubble updated");
+    },
+    onPanResponderTerminate: () => {
+      isPinching.current = false;
+      setOverlayGestureStatus("Camera bubble updated");
+    },
     onPanResponderTerminationRequest: () => false,
   }), [height, isCompositing, isRecording, width]);
-
-  function cycleOverlaySize() {
-    const nextSize = overlaySize < 145 ? 168 : overlaySize < 180 ? MAX_OVERLAY_SIZE : MIN_OVERLAY_SIZE;
-    setOverlaySize(nextSize);
-    setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
-  }
 
   async function ensurePermissions() {
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -239,13 +250,14 @@ export default function ReactionRecordScreen() {
           <Pressable onPress={() => {
             setIsCameraReady(false);
             setCameraStatus("starting");
+            setCameraInstanceKey((key) => key + 1);
             setFacing((current) => current === "front" ? "back" : "front");
           }} disabled={isRecording} hitSlop={12} style={({ pressed }) => [styles.roundControl, (pressed || isRecording) && styles.controlPressed]}>
             <MaterialIcons name="flip-camera-android" size={22} color="#FFFFFF" />
           </Pressable>
         </View> : null}
 
-        <View collapsable={false} {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
+        <View collapsable={false} pointerEvents="box-only" {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
               <>
                 <CameraView
@@ -278,9 +290,6 @@ export default function ReactionRecordScreen() {
                 </Pressable>
               </View>
             )}
-            {!isCleanScene ? <Pressable onPress={cycleOverlaySize} style={({ pressed }) => [styles.resizeHandle, pressed && styles.resizePressed]}>
-              <MaterialIcons name="open-in-full" size={14} color="#FFFFFF" />
-            </Pressable> : null}
             {!isCleanScene ? <View pointerEvents="none" style={styles.dragBadge}>
               <MaterialIcons name="open-with" size={13} color="#FFFFFF" />
               <Text style={styles.dragBadgeLabel}>DRAG</Text>
@@ -301,7 +310,7 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.3</Text>
+          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.4</Text>
         </View> : null}
 
       </View>
@@ -327,8 +336,6 @@ const styles = StyleSheet.create({
   cameraRetryButton: { backgroundColor: "#FF5C35", borderRadius: 9, marginTop: 9, paddingHorizontal: 9, paddingVertical: 6 },
   cameraRetryLabel: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
   cameraRetryPressed: { opacity: 0.72 },
-  resizeHandle: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 2, bottom: -5, height: 28, justifyContent: "center", position: "absolute", right: -5, width: 28 },
-  resizePressed: { opacity: 0.7, transform: [{ scale: 0.93 }] },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
   bottomDock: { alignItems: "center", bottom: 0, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0 },

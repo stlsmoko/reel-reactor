@@ -1,5 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Clipboard from "expo-clipboard";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -44,8 +45,26 @@ export default function HomeScreen() {
         return;
       }
 
+      if (!FileSystem.cacheDirectory) {
+        Alert.alert("Video storage unavailable", "Reel Reactor could not prepare this clip on your phone. Close the app, reopen it, and try again.");
+        return;
+      }
+
+      const extension = asset.fileName?.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? ".mp4";
+      const localUri = `${FileSystem.cacheDirectory}reel-reactor-source-${Date.now()}${extension}`;
+      try {
+        await FileSystem.copyAsync({ from: asset.uri, to: localUri });
+        const localInfo = await FileSystem.getInfoAsync(localUri);
+        if (!localInfo.exists || !localInfo.size) {
+          throw new Error("The selected clip was empty after copying.");
+        }
+      } catch {
+        Alert.alert("Could not prepare that video", "Reel Reactor needs a local copy of the selected clip before it can mix your reaction. Try selecting the clip again.");
+        return;
+      }
+
       setCurrentSource({
-        uri: asset.uri,
+        uri: localUri,
         name: asset.fileName ?? "Selected video",
         durationMs: asset.duration,
         width: asset.width,

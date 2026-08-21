@@ -57,3 +57,6 @@
 - [ ] Compile the refreshed Expo 57 Android native project locally, including ffmpeg-expo, before requesting any further owner-device test.
 - [x] Replace the installed remux-only FFmpeg bridge with a reproducible full-command native implementation that can execute overlay and audio-mix filter graphs.
 - [x] Compile the vendored arm64 FFmpeg JNI bridge directly with the Android NDK and verify the required overlay, crop, pad, scale, setsar, and amix filters are enabled.
+- [x] Diagnose the owner-reported v1.0.3 Android regression from code and build artifacts before requesting another phone test.
+- [x] Remove any unverified native dependency or interaction-layer change that can prevent the recorder from opening or responding on the owner’s Android phone.
+- [ ] Do not ask for another publish or device test until the standalone APK path itself has been compiled and inspected.
