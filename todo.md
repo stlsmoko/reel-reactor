@@ -41,3 +41,6 @@
 - [x] Verify the prebuild configuration includes the compositor plugin plus Android camera and microphone permissions.
 - [ ] Complete a standalone Android APK build and confirm a physical device renders the combined MP4 end to end.
 - [ ] Complete cloud APK compilation: local native compilation is blocked because this sandbox has no Android SDK installed, although native prebuild and compositor plugin registration complete successfully.
+- [x] Diagnose the camera-only review ambiguity and add explicit merged-render status plus a version bump so the next APK is distinguishable.
+- [x] Add concurrent native two-finger pinch resizing and one-finger drag movement for the floating reaction camera.
+- [ ] Confirm physical Android rendering opens only a combined reaction video review or shows a specific native merged-render error.

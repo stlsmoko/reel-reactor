@@ -31,11 +31,13 @@ export default function ReactionRecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isCompositing, setIsCompositing] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState("Preparing camera and microphone…");
-  const [isCleanScene, setIsCleanScene] = useState(false);
+  const [isCleanScene] = useState(false);
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const dragStart = useRef<OverlayPosition>(overlayPosition);
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
+  const overlaySizeRef = useRef(overlaySize);
+  const pinchStartSize = useRef(overlaySize);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -81,6 +83,10 @@ export default function ReactionRecordScreen() {
     overlayPositionRef.current = overlayPosition;
   }, [overlayPosition]);
 
+  useEffect(() => {
+    overlaySizeRef.current = overlaySize;
+  }, [overlaySize]);
+
   const dragGesture = useMemo(() => Gesture.Pan()
     .runOnJS(true)
     .minDistance(3)
@@ -88,6 +94,17 @@ export default function ReactionRecordScreen() {
     .onUpdate((event) => {
       setOverlayPosition(clampOverlay({ x: dragStart.current.x + event.translationX, y: dragStart.current.y + event.translationY }, { width, height }, overlaySize));
     }), [height, overlaySize, width]);
+
+  const pinchGesture = useMemo(() => Gesture.Pinch()
+    .runOnJS(true)
+    .onBegin(() => { pinchStartSize.current = overlaySizeRef.current; })
+    .onUpdate((event) => {
+      const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * event.scale)));
+      setOverlaySize(nextSize);
+      setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
+    }), [height, width]);
+
+  const overlayGesture = useMemo(() => Gesture.Simultaneous(dragGesture, pinchGesture), [dragGesture, pinchGesture]);
 
   function cycleOverlaySize() {
     const nextSize = overlaySize < 145 ? 168 : overlaySize < 180 ? MAX_OVERLAY_SIZE : MIN_OVERLAY_SIZE;
@@ -113,21 +130,6 @@ export default function ReactionRecordScreen() {
       }
     }
     setCameraInstanceKey((key) => key + 1);
-  }
-
-  async function startCleanScene() {
-    const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    if (!camera.granted) {
-      Alert.alert("Camera needed", "Allow camera access so your picture-in-picture bubble can appear in the screen recording.");
-      return;
-    }
-    if (!isCameraReady) {
-      Alert.alert("Camera is starting", "Please wait a moment and try again.");
-      return;
-    }
-    setIsCleanScene(true);
-    player.replay();
-    player.play();
   }
 
   async function toggleRecording() {
@@ -169,13 +171,13 @@ export default function ReactionRecordScreen() {
       const recorded = await cameraRef.current.recordAsync({ maxDuration: 180 });
       if (recorded?.uri) {
         setIsCompositing(true);
-        setRecordingStatus("Creating your combined reaction video…");
+        setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");
         const compositeUri = await composeReactionVideo({
           sourceUri: source!.uri,
           reactionUri: recorded.uri,
           overlay: { ...overlayPosition, size: overlaySize },
           studioSize: { width, height },
-          onProgress: (processedMs) => setRecordingStatus(`Creating your combined reaction video… ${Math.floor(processedMs / 1000)}s rendered`),
+          onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
         setRecordingStatus("Combined reaction video created. Opening review…");
@@ -184,9 +186,9 @@ export default function ReactionRecordScreen() {
         setRecordingStatus("The camera stopped without saving a video. Tap Start recording to try again.");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown camera error";
-      setRecordingStatus(`Recording could not start: ${message}`);
-      Alert.alert("Recording could not start", message);
+      const message = error instanceof Error ? error.message : "unknown native render error";
+      setRecordingStatus(`Merged video failed: ${message}`);
+      Alert.alert("Merged video failed", `${message}\n\nNo camera-only file was saved as the final reaction video.`);
     } finally {
       setIsRecording(false);
       setIsCompositing(false);
@@ -218,7 +220,7 @@ export default function ReactionRecordScreen() {
           </Pressable>
         </View> : null}
 
-        <GestureDetector gesture={dragGesture}>
+        <GestureDetector gesture={overlayGesture}>
           <View style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
               <>
@@ -262,7 +264,7 @@ export default function ReactionRecordScreen() {
         </GestureDetector>
 
         {!isCleanScene ? <View style={styles.bottomDock}>
-          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : "Drag the camera bubble, then press Start recording"}</Text>
+          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : "Drag to move • pinch with two fingers to resize"}</Text>
           <Pressable disabled={isCompositing} onPress={toggleRecording} style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}>
             <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
             <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : "Start recording"}</Text>
@@ -275,15 +277,9 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Pressable onPress={startCleanScene} disabled={isRecording} style={({ pressed }) => [styles.screenRecordingLink, (pressed || isRecording) && styles.modePressed]}>
-            <MaterialIcons name="screen-share" size={18} color="#FFB199" />
-            <Text style={styles.screenRecordingLabel}>Use device screen recording for a merged picture-in-picture video</Text>
-          </Pressable>
+          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.1</Text>
         </View> : null}
 
-        {isCleanScene ? <Pressable onPress={() => setIsCleanScene(false)} style={styles.doneButton}>
-          <Text style={styles.doneLabel}>Done</Text>
-        </Pressable> : null}
       </View>
     </ScreenContainer>
   );
@@ -321,8 +317,7 @@ const styles = StyleSheet.create({
   recordingStatusActive: { borderColor: "rgba(255,92,53,0.75)", borderWidth: 1 },
   recordingStatusText: { color: "#C1C9D4", flex: 1, fontSize: 11, fontWeight: "600", lineHeight: 15 },
   recordingStatusTextActive: { color: "#FFDFD6" },
-  screenRecordingLink: { alignItems: "center", flexDirection: "row", gap: 7, justifyContent: "center", marginTop: 10, paddingVertical: 6 },
-  screenRecordingLabel: { color: "#FFB199", fontSize: 12, fontWeight: "700" },
+  buildLabel: { color: "#FFB199", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 10 },
   retryCameraRow: { alignItems: "center", flexDirection: "row", gap: 5, marginTop: 8, paddingVertical: 3 },
   retryCameraLabel: { color: "#FFB199", fontSize: 12, fontWeight: "800" },
   modePressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
