@@ -55,6 +55,21 @@ export default function ReactionRecordScreen() {
   }, [cameraPermission?.granted, requestCameraPermission]);
 
   useEffect(() => {
+    let isActive = true;
+
+    async function prepareMicrophone() {
+      if (microphonePermission?.granted) return;
+      const permission = await requestMicrophonePermission();
+      if (!permission.granted && isActive) {
+        Alert.alert("Microphone needed", "Allow microphone access now so Start recording can capture your spoken reaction.");
+      }
+    }
+
+    prepareMicrophone().catch(() => undefined);
+    return () => { isActive = false; };
+  }, [microphonePermission?.granted, requestMicrophonePermission]);
+
+  useEffect(() => {
     overlayPositionRef.current = overlayPosition;
   }, [overlayPosition]);
 
@@ -117,13 +132,16 @@ export default function ReactionRecordScreen() {
       return;
     }
 
+    setCameraStatus("starting");
     const granted = await ensurePermissions();
     if (!granted) {
       Alert.alert("Camera and microphone needed", "Allow both permissions so Reel Reactor can record your reaction with sound.");
+      setCameraStatus(cameraPermission?.granted ? "starting" : "permission");
       return;
     }
     if (!isCameraReady || !cameraRef.current) {
-      Alert.alert("Camera is starting", "Please wait a moment and try again.");
+      setCameraStatus("starting");
+      Alert.alert("Camera is still opening", "Wait for the top label to say Ready to react, then tap Start recording.");
       return;
     }
 
@@ -159,7 +177,11 @@ export default function ReactionRecordScreen() {
             <View style={[styles.statusDot, isRecording && styles.recordingDot]} />
             <Text style={styles.statusLabel}>{isRecording ? "Recording reaction" : cameraStatus === "ready" ? "Ready to react" : "Opening camera"}</Text>
           </View>
-          <Pressable onPress={() => setFacing((current) => current === "front" ? "back" : "front")} disabled={isRecording} hitSlop={12} style={({ pressed }) => [styles.roundControl, (pressed || isRecording) && styles.controlPressed]}>
+          <Pressable onPress={() => {
+            setIsCameraReady(false);
+            setCameraStatus("starting");
+            setFacing((current) => current === "front" ? "back" : "front");
+          }} disabled={isRecording} hitSlop={12} style={({ pressed }) => [styles.roundControl, (pressed || isRecording) && styles.controlPressed]}>
             <MaterialIcons name="flip-camera-android" size={22} color="#FFFFFF" />
           </Pressable>
         </View> : null}
@@ -167,20 +189,22 @@ export default function ReactionRecordScreen() {
         <GestureDetector gesture={dragGesture}>
           <View style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
-              <CameraView
-                key={cameraInstanceKey}
-                ref={cameraRef}
-                pointerEvents="none"
-                style={styles.camera}
-                facing={facing}
-                mode="video"
-                onCameraReady={() => { setIsCameraReady(true); setCameraStatus("ready"); }}
-                onMountError={(error) => {
-                  setIsCameraReady(false);
-                  setCameraStatus("error");
-                  Alert.alert("Camera could not open", error.message || "Close other apps using the camera, then tap Retry camera.");
-                }}
-              />
+              <>
+                <CameraView
+                  key={cameraInstanceKey}
+                  ref={cameraRef}
+                  style={styles.camera}
+                  facing={facing}
+                  mode="video"
+                  onCameraReady={() => { setIsCameraReady(true); setCameraStatus("ready"); }}
+                  onMountError={(error) => {
+                    setIsCameraReady(false);
+                    setCameraStatus("error");
+                    Alert.alert("Camera could not open", error.message || "Close other apps using the camera, then tap Retry camera.");
+                  }}
+                />
+                <View style={styles.dragSurface} />
+              </>
             ) : (
               <View style={styles.permissionOverlay}>
                 <MaterialIcons name="video-camera-front" size={28} color="#FF8A6B" />
@@ -236,6 +260,7 @@ const styles = StyleSheet.create({
   statusLabel: { color: "#F7F8FA", fontSize: 13, fontWeight: "700" },
   reactionOverlay: { borderColor: "#FFFFFF", borderWidth: 3, elevation: 8, overflow: "visible", position: "absolute", shadowColor: "#000000", shadowOpacity: 0.42, shadowRadius: 10 },
   camera: { borderRadius: 999, flex: 1, overflow: "hidden" },
+  dragSurface: { ...StyleSheet.absoluteFillObject, backgroundColor: "transparent", borderRadius: 999 },
   permissionOverlay: { alignItems: "center", backgroundColor: "#171E2B", borderRadius: 999, flex: 1, justifyContent: "center", overflow: "hidden" },
   permissionOverlayText: { color: "#F7F8FA", fontSize: 10, fontWeight: "700", lineHeight: 14, marginTop: 5, textAlign: "center" },
   cameraRetryButton: { backgroundColor: "#FF5C35", borderRadius: 9, marginTop: 9, paddingHorizontal: 9, paddingVertical: 6 },

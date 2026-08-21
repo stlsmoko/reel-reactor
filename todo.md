@@ -28,3 +28,6 @@
 - [x] Repair the Android camera preview lifecycle with immediate permission request, camera mount status, and a native retry control.
 - [x] Build an Android bundle successfully after the camera preview lifecycle repair.
 - [ ] Confirm the repaired camera opens and can record a short take on the owner’s Android device.
+- [x] Replace the silent record-start path with explicit camera/microphone preparation, camera-ready status, and actionable retry feedback.
+- [x] Build an Android bundle successfully after the record-start control repair.
+- [ ] Confirm Start recording changes to Stop recording and produces a saved short take on the owner’s Android device.
