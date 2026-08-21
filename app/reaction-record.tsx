@@ -28,6 +28,7 @@ export default function ReactionRecordScreen() {
   const [cameraStatus, setCameraStatus] = useState<"permission" | "starting" | "ready" | "error">("permission");
   const [cameraInstanceKey, setCameraInstanceKey] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState("Preparing camera and microphone…");
   const [isCleanScene, setIsCleanScene] = useState(false);
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
@@ -44,10 +45,14 @@ export default function ReactionRecordScreen() {
     async function openCameraPreview() {
       if (!cameraPermission?.granted) {
         const permission = await requestCameraPermission();
-        if (isActive) setCameraStatus(permission.granted ? "starting" : "permission");
+        if (isActive) {
+          setCameraStatus(permission.granted ? "starting" : "permission");
+          setRecordingStatus(permission.granted ? "Opening camera preview…" : "Camera permission is required to record.");
+        }
         return;
       }
       setCameraStatus("starting");
+      setRecordingStatus("Opening camera preview…");
     }
 
     openCameraPreview().catch(() => isActive && setCameraStatus("error"));
@@ -61,6 +66,7 @@ export default function ReactionRecordScreen() {
       if (microphonePermission?.granted) return;
       const permission = await requestMicrophonePermission();
       if (!permission.granted && isActive) {
+        setRecordingStatus("Microphone permission is required to record your voice.");
         Alert.alert("Microphone needed", "Allow microphone access now so Start recording can capture your spoken reaction.");
       }
     }
@@ -96,6 +102,7 @@ export default function ReactionRecordScreen() {
   async function retryCameraPreview() {
     setIsCameraReady(false);
     setCameraStatus("starting");
+    setRecordingStatus("Retrying camera preview…");
     if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission();
       if (!permission.granted) {
@@ -123,7 +130,13 @@ export default function ReactionRecordScreen() {
 
   async function toggleRecording() {
     if (isRecording) {
-      cameraRef.current?.stopRecording();
+      setRecordingStatus("Finishing and saving your reaction…");
+      try {
+        cameraRef.current?.stopRecording();
+      } catch (error) {
+        setRecordingStatus(`Could not stop the recording: ${error instanceof Error ? error.message : "unknown camera error"}`);
+        setIsRecording(false);
+      }
       return;
     }
 
@@ -132,30 +145,37 @@ export default function ReactionRecordScreen() {
       return;
     }
 
-    setCameraStatus("starting");
+    setRecordingStatus("Checking camera and microphone permissions…");
     const granted = await ensurePermissions();
     if (!granted) {
       Alert.alert("Camera and microphone needed", "Allow both permissions so Reel Reactor can record your reaction with sound.");
-      setCameraStatus(cameraPermission?.granted ? "starting" : "permission");
+      setRecordingStatus("Camera and microphone permission are required before recording can start.");
       return;
     }
     if (!isCameraReady || !cameraRef.current) {
       setCameraStatus("starting");
+      setRecordingStatus("Camera preview is not ready yet. Wait for Ready to react, then try again.");
       Alert.alert("Camera is still opening", "Wait for the top label to say Ready to react, then tap Start recording.");
       return;
     }
 
     setIsRecording(true);
+    setRecordingStatus("Recording reaction now. Tap Stop recording when you are finished.");
     player.replay();
     player.play();
     try {
       const recorded = await cameraRef.current.recordAsync({ maxDuration: 180 });
       if (recorded?.uri) {
         setCurrentReaction({ uri: recorded.uri, recordedAt: Date.now() });
+        setRecordingStatus("Reaction saved. Opening review…");
         router.replace("/review" as never);
+      } else {
+        setRecordingStatus("The camera stopped without saving a video. Tap Start recording to try again.");
       }
-    } catch {
-      Alert.alert("Recording stopped", "The camera could not finish this take. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown camera error";
+      setRecordingStatus(`Recording could not start: ${message}`);
+      Alert.alert("Recording could not start", message);
     } finally {
       setIsRecording(false);
     }
@@ -196,10 +216,15 @@ export default function ReactionRecordScreen() {
                   style={styles.camera}
                   facing={facing}
                   mode="video"
-                  onCameraReady={() => { setIsCameraReady(true); setCameraStatus("ready"); }}
-                  onMountError={(error) => {
-                    setIsCameraReady(false);
-                    setCameraStatus("error");
+                onCameraReady={() => {
+                  setIsCameraReady(true);
+                  setCameraStatus("ready");
+                  setRecordingStatus("Camera ready. Tap Start recording when you are ready.");
+                }}
+                onMountError={(error) => {
+                  setIsCameraReady(false);
+                  setCameraStatus("error");
+                  setRecordingStatus(`Camera could not open: ${error.message || "unknown camera error"}`);
                     Alert.alert("Camera could not open", error.message || "Close other apps using the camera, then tap Retry camera.");
                   }}
                 />
@@ -230,6 +255,10 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name={isRecording ? "stop" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
             <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isRecording ? "Stop recording" : "Start recording"}</Text>
           </Pressable>
+          <View style={[styles.recordingStatusRow, isRecording && styles.recordingStatusActive]}>
+            <MaterialIcons name={isRecording ? "fiber-manual-record" : "info-outline"} size={15} color={isRecording ? "#FFB199" : "#C1C9D4"} />
+            <Text style={[styles.recordingStatusText, isRecording && styles.recordingStatusTextActive]}>{recordingStatus}</Text>
+          </View>
           {cameraStatus === "error" ? <Pressable onPress={retryCameraPreview} style={({ pressed }) => [styles.retryCameraRow, pressed && styles.modePressed]}>
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
@@ -276,6 +305,10 @@ const styles = StyleSheet.create({
   stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   startRecordLabel: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
   stopRecordLabel: { color: "#FF5C35", fontSize: 17, fontWeight: "900" },
+  recordingStatusRow: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.82)", borderRadius: 10, flexDirection: "row", gap: 7, marginTop: 9, paddingHorizontal: 10, paddingVertical: 7, width: "100%" },
+  recordingStatusActive: { borderColor: "rgba(255,92,53,0.75)", borderWidth: 1 },
+  recordingStatusText: { color: "#C1C9D4", flex: 1, fontSize: 11, fontWeight: "600", lineHeight: 15 },
+  recordingStatusTextActive: { color: "#FFDFD6" },
   screenRecordingLink: { alignItems: "center", flexDirection: "row", gap: 7, justifyContent: "center", marginTop: 10, paddingVertical: 6 },
   screenRecordingLabel: { color: "#FFB199", fontSize: 12, fontWeight: "700" },
   retryCameraRow: { alignItems: "center", flexDirection: "row", gap: 5, marginTop: 8, paddingVertical: 3 },
