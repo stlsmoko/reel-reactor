@@ -1,7 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import * as MediaLibrary from "expo-media-library";
-import * as Sharing from "expo-sharing";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -15,7 +13,6 @@ export default function ReviewScreen() {
   const player = useVideoPlayer(takeUri ?? null, (videoPlayer) => {
     videoPlayer.loop = true;
   });
-  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions({ writeOnly: true });
 
   if (!takeUri || !take?.isComposite) {
     router.replace("/");
@@ -27,7 +24,8 @@ export default function ReviewScreen() {
       Alert.alert("Use a phone to save", "Saving a local camera take requires the native iPhone or Android build.");
       return;
     }
-    const permission = permissionResponse?.granted ? permissionResponse : await requestPermission();
+    const MediaLibrary = await import("expo-media-library");
+    const permission = await MediaLibrary.requestPermissionsAsync(true, ["video"]);
     if (!permission.granted) {
       Alert.alert("Permission needed", "Allow photo-library access to save this reaction take.");
       return;
@@ -37,6 +35,11 @@ export default function ReviewScreen() {
   }
 
   async function shareTake() {
+    if (Platform.OS === "web") {
+      Alert.alert("Use a phone to share", "Sharing a local reaction video requires the native iPhone or Android build.");
+      return;
+    }
+    const Sharing = await import("expo-sharing");
     const available = await Sharing.isAvailableAsync();
     if (!available) {
       Alert.alert("Sharing unavailable", "This device does not currently provide a compatible share sheet.");

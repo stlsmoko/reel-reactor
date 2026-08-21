@@ -60,3 +60,4 @@
 - [x] Diagnose the owner-reported v1.0.3 Android regression from code and build artifacts before requesting another phone test.
 - [x] Remove any unverified native dependency or interaction-layer change that can prevent the recorder from opening or responding on the owner’s Android phone.
 - [ ] Do not ask for another publish or device test until the standalone APK path itself has been compiled and inspected.
+- [x] Prevent the review screen from importing Android-only media-library code in the web bundle, which currently produces a server error during preview loading.
