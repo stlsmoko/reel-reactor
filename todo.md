@@ -14,3 +14,8 @@
 - [x] Generate and configure a dedicated Reel Reactor icon and app branding.
 - [x] Validate source handling and studio state transitions with unit tests, type checking, and linting.
 - [ ] Test camera capture, source audio, microphone input, and clean-scene screen recording on a physical iPhone or Android device.
+- [ ] Install Reel Reactor on the owner’s Android phone and complete the first physical-device test.
+- [ ] Resolve Expo Go’s “Failed to download remote update” error on the owner’s Android preview session.
+- [ ] Create and install the standalone Android build through the project Publish workflow as the reliable phone-test fallback.
+- [x] Fix the source-setup layout so “Open reaction studio” is always visible and tappable on a 9:16 Android screen.
+- [x] Verify the preview service has completed a fresh Metro bundle after the layout repair.
