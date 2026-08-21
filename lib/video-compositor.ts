@@ -1,6 +1,8 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { execute, FFmpegError } from "ffmpeg-expo";
 
+import { buildCompositeCommand } from "@/lib/video-compositor-command";
+
 export type CompositeRequest = {
   sourceUri: string;
   reactionUri: string;
@@ -9,61 +11,76 @@ export type CompositeRequest = {
   onProgress?: (processedMs: number) => void;
 };
 
-const OUTPUT_WIDTH = 720;
-const OUTPUT_HEIGHT = 1280;
+const MIN_MEDIA_BYTES = 1_024;
+const MAX_LOG_LINES = 18;
 
-function getOutputOverlay(request: CompositeRequest) {
-  const scaleX = OUTPUT_WIDTH / request.studioSize.width;
-  const scaleY = OUTPUT_HEIGHT / request.studioSize.height;
-  const scale = Math.min(scaleX, scaleY);
-  return {
-    x: Math.max(0, Math.round(request.overlay.x * scaleX)),
-    y: Math.max(0, Math.round(request.overlay.y * scaleY)),
-    size: Math.max(80, Math.round(request.overlay.size * scale)),
-  };
+function getCacheDirectory() {
+  if (!FileSystem.cacheDirectory) {
+    throw new Error("The device cache directory is unavailable for the merged video.");
+  }
+  return FileSystem.cacheDirectory;
+}
+
+function safeExtension(uri: string) {
+  const candidate = uri.split("?")[0].match(/\.([a-z0-9]{2,5})$/i)?.[1];
+  return candidate ? `.${candidate.toLowerCase()}` : ".mp4";
+}
+
+async function ensureReadableMedia(label: string, uri: string) {
+  if (!uri) {
+    throw new Error(`${label} video path is missing.`);
+  }
+
+  let localUri = uri;
+  if (uri.startsWith("content://")) {
+    localUri = `${getCacheDirectory()}reel-reactor-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}${safeExtension(uri)}`;
+    try {
+      await FileSystem.copyAsync({ from: uri, to: localUri });
+    } catch {
+      throw new Error(`${label} video could not be copied from Android media storage. Choose the video again and try recording once more.`);
+    }
+  }
+
+  if (!localUri.startsWith("file://")) {
+    throw new Error(`${label} video must be a local file before it can be rendered.`);
+  }
+
+  const info = await FileSystem.getInfoAsync(localUri);
+  if (!info.exists || !info.size || info.size < MIN_MEDIA_BYTES) {
+    throw new Error(`${label} video is not readable on this device. Choose or record it again, then retry.`);
+  }
+
+  return localUri;
 }
 
 export async function composeReactionVideo(request: CompositeRequest) {
-  const overlay = getOutputOverlay(request);
-  const outputUri = `${FileSystem.cacheDirectory}reel-reactor-${Date.now()}.mp4`;
-  const filter = [
-    `[0:v]scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease`,
-    `pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    "setsar=1[background]",
-    `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase`,
-    `crop=${overlay.size}:${overlay.size},setsar=1[reaction]`,
-    `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1[video]`,
-    "[0:a][1:a]amix=inputs=2:duration=shortest:dropout_transition=0[audio]",
-  ].join(";");
+  const sourcePath = await ensureReadableMedia("Source", request.sourceUri);
+  const reactionPath = await ensureReadableMedia("Reaction", request.reactionUri);
+  const outputPath = `${getCacheDirectory()}reel-reactor-composite-${Date.now()}.mp4`;
+  const command = buildCompositeCommand({ ...request, sourcePath, reactionPath, outputPath });
+  const logLines: string[] = [];
 
   try {
-    await execute([
-      "-y",
-      "-i", request.sourceUri,
-      "-i", request.reactionUri,
-      "-filter_complex", filter,
-      "-map", "[video]",
-      "-map", "[audio]",
-      "-c:v", "mpeg4",
-      "-q:v", "4",
-      "-pix_fmt", "yuv420p",
-      "-c:a", "aac",
-      "-shortest",
-      outputUri,
-    ], {
+    await execute(command.args, {
       onProgress: (progress) => request.onProgress?.(progress.time),
-      logLevel: "warning",
+      onLog: (log) => {
+        if (log.message.trim()) {
+          logLines.push(log.message.trim());
+          if (logLines.length > MAX_LOG_LINES) logLines.shift();
+        }
+      },
+      logLevel: "info",
     });
   } catch (error) {
-    if (error instanceof FFmpegError) {
-      throw new Error(error.output.trim().slice(-700) || "The device could not render the merged reaction video.");
-    }
-    throw error;
+    const nativeOutput = error instanceof FFmpegError ? error.output.trim() : "";
+    const diagnostic = nativeOutput || logLines.join("\n");
+    throw new Error(diagnostic.slice(-1_200) || "The device could not render the merged reaction video.");
   }
 
-  const outputInfo = await FileSystem.getInfoAsync(outputUri);
-  if (!outputInfo.exists || !outputInfo.size) {
-    throw new Error("The merged reaction video was not created on the device.");
+  const outputInfo = await FileSystem.getInfoAsync(outputPath);
+  if (!outputInfo.exists || !outputInfo.size || outputInfo.size < MIN_MEDIA_BYTES) {
+    throw new Error("The renderer completed without creating a usable merged MP4 on the device.");
   }
-  return outputUri;
+
+  return outputPath;
 }

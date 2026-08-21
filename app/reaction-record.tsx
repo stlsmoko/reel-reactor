@@ -3,8 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Alert, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { clampOverlay, type OverlayPosition } from "@/lib/reaction-project";
@@ -13,6 +12,12 @@ import { composeReactionVideo } from "@/lib/video-compositor";
 
 const MIN_OVERLAY_SIZE = 96;
 const MAX_OVERLAY_SIZE = 184;
+
+function getTouchDistance(touches: { pageX: number; pageY: number }[]) {
+  if (touches.length < 2) return 0;
+  const [first, second] = touches;
+  return Math.hypot(second.pageX - first.pageX, second.pageY - first.pageY);
+}
 
 export default function ReactionRecordScreen() {
   const source = getCurrentSource();
@@ -39,6 +44,7 @@ export default function ReactionRecordScreen() {
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
   const overlaySizeRef = useRef(overlaySize);
   const pinchStartSize = useRef(overlaySize);
+  const pinchStartDistance = useRef(0);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -88,32 +94,42 @@ export default function ReactionRecordScreen() {
     overlaySizeRef.current = overlaySize;
   }, [overlaySize]);
 
-  const dragGesture = useMemo(() => Gesture.Pan()
-    .runOnJS(true)
-    .minDistance(3)
-    .onBegin(() => {
+  // React Native invokes these responder callbacks after a touch event, never during render.
+  // eslint-disable-next-line react-hooks/refs
+  const overlayResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: (event) => !isRecording && !isCompositing && event.nativeEvent.touches.length > 1,
+    onMoveShouldSetPanResponder: (_, gestureState) => !isRecording && !isCompositing && (Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 3),
+    onMoveShouldSetPanResponderCapture: (event, gestureState) => !isRecording && !isCompositing && (event.nativeEvent.touches.length > 1 || Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 3),
+    onPanResponderGrant: (event) => {
       dragStart.current = overlayPositionRef.current;
-      setOverlayGestureStatus("Moving camera bubble");
-    })
-    .onUpdate((event) => {
-      setOverlayPosition(clampOverlay({ x: dragStart.current.x + event.translationX, y: dragStart.current.y + event.translationY }, { width, height }, overlaySize));
-    })
-    .onEnd(() => setOverlayGestureStatus("Camera bubble moved")), [height, overlaySize, width]);
-
-  const pinchGesture = useMemo(() => Gesture.Pinch()
-    .runOnJS(true)
-    .onBegin(() => {
+      pinchStartDistance.current = getTouchDistance(event.nativeEvent.touches);
       pinchStartSize.current = overlaySizeRef.current;
-      setOverlayGestureStatus("Resizing camera bubble");
-    })
-    .onUpdate((event) => {
-      const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * event.scale)));
-      setOverlaySize(nextSize);
-      setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
-    })
-    .onEnd(() => setOverlayGestureStatus("Camera bubble resized")), [height, width]);
+      if (pinchStartDistance.current > 0) {
+        setOverlayGestureStatus("Resizing camera bubble");
+      } else {
+        setOverlayGestureStatus("Moving camera bubble");
+      }
+    },
+    onPanResponderMove: (event, gestureState) => {
+      const touchDistance = getTouchDistance(event.nativeEvent.touches);
 
-  const overlayGesture = useMemo(() => Gesture.Simultaneous(dragGesture, pinchGesture), [dragGesture, pinchGesture]);
+      if (event.nativeEvent.touches.length > 1 && touchDistance > 0) {
+        const baseline = pinchStartDistance.current || touchDistance;
+        const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * (touchDistance / baseline))));
+        overlaySizeRef.current = nextSize;
+        setOverlaySize(nextSize);
+        setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
+        setOverlayGestureStatus("Resizing camera bubble");
+        return;
+      }
+
+      setOverlayPosition(clampOverlay({ x: dragStart.current.x + gestureState.dx, y: dragStart.current.y + gestureState.dy }, { width, height }, overlaySizeRef.current));
+      setOverlayGestureStatus("Moving camera bubble");
+    },
+    onPanResponderRelease: () => setOverlayGestureStatus("Camera bubble updated"),
+    onPanResponderTerminate: () => setOverlayGestureStatus("Camera bubble updated"),
+    onPanResponderTerminationRequest: () => false,
+  }), [height, isCompositing, isRecording, width]);
 
   function cycleOverlaySize() {
     const nextSize = overlaySize < 145 ? 168 : overlaySize < 180 ? MAX_OVERLAY_SIZE : MIN_OVERLAY_SIZE;
@@ -229,8 +245,7 @@ export default function ReactionRecordScreen() {
           </Pressable>
         </View> : null}
 
-        <GestureDetector gesture={overlayGesture}>
-          <View collapsable={false} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
+        <View collapsable={false} {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
               <>
                 <CameraView
@@ -252,7 +267,7 @@ export default function ReactionRecordScreen() {
                     Alert.alert("Camera could not open", error.message || "Close other apps using the camera, then tap Retry camera.");
                   }}
                 />
-                <View collapsable={false} pointerEvents="auto" style={styles.dragSurface} />
+                <View collapsable={false} pointerEvents="none" style={styles.interactionSurface} />
               </>
             ) : (
               <View style={styles.permissionOverlay}>
@@ -270,8 +285,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="open-with" size={13} color="#FFFFFF" />
               <Text style={styles.dragBadgeLabel}>DRAG</Text>
             </View> : null}
-          </View>
-        </GestureDetector>
+        </View>
 
         {!isCleanScene ? <View style={styles.bottomDock}>
           <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
@@ -287,7 +301,7 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.2</Text>
+          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.3</Text>
         </View> : null}
 
       </View>
@@ -307,7 +321,7 @@ const styles = StyleSheet.create({
   statusLabel: { color: "#F7F8FA", fontSize: 13, fontWeight: "700" },
   reactionOverlay: { borderColor: "#FFFFFF", borderWidth: 3, elevation: 8, overflow: "visible", position: "absolute", shadowColor: "#000000", shadowOpacity: 0.42, shadowRadius: 10 },
   camera: { borderRadius: 999, flex: 1, overflow: "hidden" },
-  dragSurface: { ...StyleSheet.absoluteFill, backgroundColor: "transparent", borderRadius: 999 },
+  interactionSurface: { ...StyleSheet.absoluteFill, backgroundColor: "transparent", borderRadius: 999 },
   permissionOverlay: { alignItems: "center", backgroundColor: "#171E2B", borderRadius: 999, flex: 1, justifyContent: "center", overflow: "hidden" },
   permissionOverlayText: { color: "#F7F8FA", fontSize: 10, fontWeight: "700", lineHeight: 14, marginTop: 5, textAlign: "center" },
   cameraRetryButton: { backgroundColor: "#FF5C35", borderRadius: 9, marginTop: 9, paddingHorizontal: 9, paddingVertical: 6 },

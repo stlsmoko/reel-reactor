@@ -23,6 +23,8 @@ export default function ReactionStudioScreen() {
     if (!source) router.replace("/");
   }, [source]);
 
+  // React Native invokes these responder callbacks after a touch event, never during render.
+  // eslint-disable-next-line react-hooks/refs
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
     onPanResponderGrant: () => { dragStart.current = overlayPosition; },

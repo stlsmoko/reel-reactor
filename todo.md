@@ -40,10 +40,20 @@
 - [x] Implement the on-device source scaling, positioned overlay, audio-mixing, composite MP4 review, save, and share flow.
 - [x] Verify the prebuild configuration includes the compositor plugin plus Android camera and microphone permissions.
 - [ ] Complete a standalone Android APK build and confirm a physical device renders the combined MP4 end to end.
-- [ ] Complete cloud APK compilation: local native compilation is blocked because this sandbox has no Android SDK installed, although native prebuild and compositor plugin registration complete successfully.
+- [ ] Complete cloud or local APK compilation: the Android SDK is installed, but this sandbox terminates Gradle before task configuration; native prebuild and direct NDK compilation of the compositor now succeed.
 - [x] Diagnose the camera-only review ambiguity and add explicit merged-render status plus a version bump so the next APK is distinguishable.
 - [x] Add concurrent native two-finger pinch resizing and one-finger drag movement for the floating reaction camera.
 - [ ] Confirm physical Android rendering opens only a combined reaction video review or shows a specific native merged-render error.
 - [x] Replace the camera-overlay gesture surface with a non-interactive camera preview beneath a dedicated native pan-and-pinch control layer.
 - [x] Block camera-only reaction data from ever entering the final review route; only a flagged composite output can be reviewed, saved, or shared.
 - [x] Add explicit native render-stage status and hard render-failure messaging to the recorder.
+- [ ] Reproduce the full camera, gesture, recording, and composite-export workflow in an executable Android environment before sending another build claim.
+- [ ] Do not issue further implementation-complete claims until a real merged MP4 has been inspected from the native runtime.
+- [x] Remove direct React Navigation dependencies that prevent Expo Router from starting under Expo 56.
+- [x] Install Expo Asset and align all remaining Expo 56 peer and toolchain versions before native APK validation.
+- [x] Upgrade to Expo 57 and React Native 0.86.2+ to remove the diagnosed Hermes memory regression and Metro dependency override.
+- [x] Replace the Android overlay input layer with an independently verifiable responder-based drag and pinch implementation that does not depend on the native camera view receiving gestures.
+- [ ] Validate real source and camera URI accessibility, FFmpeg command construction, output creation, and recorded durations before navigating to review.
+- [ ] Compile the refreshed Expo 57 Android native project locally, including ffmpeg-expo, before requesting any further owner-device test.
+- [x] Replace the installed remux-only FFmpeg bridge with a reproducible full-command native implementation that can execute overlay and audio-mix filter graphs.
+- [x] Compile the vendored arm64 FFmpeg JNI bridge directly with the Android NDK and verify the required overlay, crop, pad, scale, setsar, and amix filters are enabled.
