@@ -19,3 +19,6 @@
 - [ ] Create and install the standalone Android build through the project Publish workflow as the reliable phone-test fallback.
 - [x] Fix the source-setup layout so “Open reaction studio” is always visible and tappable on a 9:16 Android screen.
 - [x] Verify the preview service has completed a fresh Metro bundle after the layout repair.
+- [x] Replace the ambiguous Camera take control with a prominent Start recording button that clearly changes to Stop recording.
+- [x] Make the live camera bubble pass Android touch drags through the camera preview to the parent move gesture.
+- [ ] Confirm the revised record button, drag gesture, and resize handle on the owner’s Android device.

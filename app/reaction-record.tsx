@@ -33,11 +33,12 @@ export default function ReactionRecordScreen() {
 
   useEffect(() => {
     if (!source) router.replace("/");
-    return () => player.pause();
+    return () => { Promise.resolve(player.pause()).catch(() => undefined); };
   }, [player, source]);
 
   const dragResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
+    onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: () => { dragStart.current = overlayPosition; },
     onPanResponderMove: (_, gesture) => {
       setOverlayPosition(clampOverlay({ x: dragStart.current.x + gesture.dx, y: dragStart.current.y + gesture.dy }, { width, height }, overlaySize));
@@ -137,7 +138,7 @@ export default function ReactionRecordScreen() {
 
         <View {...dragResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
           {cameraPermission?.granted ? (
-            <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" onCameraReady={() => setIsCameraReady(true)} />
+            <CameraView ref={cameraRef} pointerEvents="none" style={styles.camera} facing={facing} mode="video" onCameraReady={() => setIsCameraReady(true)} />
           ) : (
             <View style={styles.permissionOverlay}>
               <MaterialIcons name="video-camera-front" size={28} color="#FF8A6B" />
@@ -147,21 +148,22 @@ export default function ReactionRecordScreen() {
           {!isCleanScene ? <View {...resizeResponder.panHandlers} style={styles.resizeHandle}>
             <MaterialIcons name="open-in-full" size={14} color="#FFFFFF" />
           </View> : null}
+          {!isCleanScene ? <View pointerEvents="none" style={styles.dragBadge}>
+            <MaterialIcons name="open-with" size={13} color="#FFFFFF" />
+            <Text style={styles.dragBadgeLabel}>DRAG</Text>
+          </View> : null}
         </View>
 
         {!isCleanScene ? <View style={styles.bottomDock}>
-          <Text style={styles.instruction}>{isRecording ? "Your source clip is playing while your camera take records" : "Drag the bubble; use the corner handle to resize"}</Text>
-          <View style={styles.modeRow}>
-            <Pressable onPress={toggleRecording} style={({ pressed }) => [styles.modeButton, pressed && styles.modePressed]}>
-              <MaterialIcons name={isRecording ? "stop" : "videocam"} size={19} color="#FFFFFF" />
-              <Text style={styles.modeLabel}>{isRecording ? "Stop take" : "Camera take"}</Text>
-            </Pressable>
-            <Pressable onPress={startCleanScene} disabled={isRecording} style={({ pressed }) => [styles.modeButton, styles.screenModeButton, (pressed || isRecording) && styles.modePressed]}>
-              <MaterialIcons name="screen-share" size={19} color="#FF8A6B" />
-              <Text style={styles.screenModeLabel}>Screen recording</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.recordCaption}>Screen recording creates the merged picture-in-picture capture</Text>
+          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : "Drag the camera bubble, then press Start recording"}</Text>
+          <Pressable onPress={toggleRecording} style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, pressed && styles.recordPressed]}>
+            <MaterialIcons name={isRecording ? "stop" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
+            <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isRecording ? "Stop recording" : "Start recording"}</Text>
+          </Pressable>
+          <Pressable onPress={startCleanScene} disabled={isRecording} style={({ pressed }) => [styles.screenRecordingLink, (pressed || isRecording) && styles.modePressed]}>
+            <MaterialIcons name="screen-share" size={18} color="#FFB199" />
+            <Text style={styles.screenRecordingLabel}>Use device screen recording for a merged picture-in-picture video</Text>
+          </Pressable>
         </View> : null}
 
         {isCleanScene ? <Pressable onPress={() => setIsCleanScene(false)} style={styles.doneButton}>
@@ -187,15 +189,18 @@ const styles = StyleSheet.create({
   permissionOverlay: { alignItems: "center", backgroundColor: "#171E2B", borderRadius: 999, flex: 1, justifyContent: "center", overflow: "hidden" },
   permissionOverlayText: { color: "#F7F8FA", fontSize: 10, fontWeight: "700", lineHeight: 14, marginTop: 5, textAlign: "center" },
   resizeHandle: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "#FFFFFF", borderRadius: 14, borderWidth: 2, bottom: -5, height: 28, justifyContent: "center", position: "absolute", right: -5, width: 28 },
+  dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
+  dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
   bottomDock: { alignItems: "center", bottom: 0, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0 },
   instruction: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginBottom: 13, textAlign: "center", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 5 },
-  modeRow: { flexDirection: "row", gap: 10, justifyContent: "center", width: "100%" },
-  modeButton: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.88)", borderColor: "rgba(255,255,255,0.25)", borderRadius: 16, borderWidth: 1, flex: 1, flexDirection: "row", gap: 8, height: 54, justifyContent: "center" },
-  screenModeButton: { borderColor: "#FF8A6B" },
-  modeLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
-  screenModeLabel: { color: "#FF8A6B", fontSize: 13, fontWeight: "800" },
+  startRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.95)", borderRadius: 18, borderWidth: 2, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
+  stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
+  startRecordLabel: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  stopRecordLabel: { color: "#FF5C35", fontSize: 17, fontWeight: "900" },
+  screenRecordingLink: { alignItems: "center", flexDirection: "row", gap: 7, justifyContent: "center", marginTop: 10, paddingVertical: 6 },
+  screenRecordingLabel: { color: "#FFB199", fontSize: 12, fontWeight: "700" },
   modePressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
-  recordCaption: { color: "#E8EDF5", fontSize: 12, fontWeight: "600", marginTop: 9, textAlign: "center" },
+  recordPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   doneButton: { backgroundColor: "rgba(12,16,24,0.48)", borderRadius: 10, bottom: 12, paddingHorizontal: 10, paddingVertical: 6, position: "absolute", right: 12 },
   doneLabel: { color: "rgba(247,248,250,0.84)", fontSize: 11, fontWeight: "800" },
 });
