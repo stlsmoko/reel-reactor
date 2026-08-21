@@ -34,6 +34,7 @@ export default function ReactionRecordScreen() {
   const [isCleanScene] = useState(false);
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
+  const [overlayGestureStatus, setOverlayGestureStatus] = useState("Drag to move • pinch to resize");
   const dragStart = useRef<OverlayPosition>(overlayPosition);
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
   const overlaySizeRef = useRef(overlaySize);
@@ -90,19 +91,27 @@ export default function ReactionRecordScreen() {
   const dragGesture = useMemo(() => Gesture.Pan()
     .runOnJS(true)
     .minDistance(3)
-    .onBegin(() => { dragStart.current = overlayPositionRef.current; })
+    .onBegin(() => {
+      dragStart.current = overlayPositionRef.current;
+      setOverlayGestureStatus("Moving camera bubble");
+    })
     .onUpdate((event) => {
       setOverlayPosition(clampOverlay({ x: dragStart.current.x + event.translationX, y: dragStart.current.y + event.translationY }, { width, height }, overlaySize));
-    }), [height, overlaySize, width]);
+    })
+    .onEnd(() => setOverlayGestureStatus("Camera bubble moved")), [height, overlaySize, width]);
 
   const pinchGesture = useMemo(() => Gesture.Pinch()
     .runOnJS(true)
-    .onBegin(() => { pinchStartSize.current = overlaySizeRef.current; })
+    .onBegin(() => {
+      pinchStartSize.current = overlaySizeRef.current;
+      setOverlayGestureStatus("Resizing camera bubble");
+    })
     .onUpdate((event) => {
       const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * event.scale)));
       setOverlaySize(nextSize);
       setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
-    }), [height, width]);
+    })
+    .onEnd(() => setOverlayGestureStatus("Camera bubble resized")), [height, width]);
 
   const overlayGesture = useMemo(() => Gesture.Simultaneous(dragGesture, pinchGesture), [dragGesture, pinchGesture]);
 
@@ -221,13 +230,14 @@ export default function ReactionRecordScreen() {
         </View> : null}
 
         <GestureDetector gesture={overlayGesture}>
-          <View style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
+          <View collapsable={false} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
               <>
                 <CameraView
                   key={cameraInstanceKey}
                   ref={cameraRef}
                   style={styles.camera}
+                  pointerEvents="none"
                   facing={facing}
                   mode="video"
                 onCameraReady={() => {
@@ -242,7 +252,7 @@ export default function ReactionRecordScreen() {
                     Alert.alert("Camera could not open", error.message || "Close other apps using the camera, then tap Retry camera.");
                   }}
                 />
-                <View style={styles.dragSurface} />
+                <View collapsable={false} pointerEvents="auto" style={styles.dragSurface} />
               </>
             ) : (
               <View style={styles.permissionOverlay}>
@@ -264,7 +274,7 @@ export default function ReactionRecordScreen() {
         </GestureDetector>
 
         {!isCleanScene ? <View style={styles.bottomDock}>
-          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : "Drag to move • pinch with two fingers to resize"}</Text>
+          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
           <Pressable disabled={isCompositing} onPress={toggleRecording} style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}>
             <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
             <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : "Start recording"}</Text>
@@ -277,7 +287,7 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.1</Text>
+          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.2</Text>
         </View> : null}
 
       </View>

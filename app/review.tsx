@@ -17,7 +17,7 @@ export default function ReviewScreen() {
   });
   const [permissionResponse, requestPermission] = MediaLibrary.usePermissions({ writeOnly: true });
 
-  if (!takeUri) {
+  if (!takeUri || !take?.isComposite) {
     router.replace("/");
     return null;
   }
@@ -51,7 +51,7 @@ export default function ReviewScreen() {
         <Pressable onPress={() => router.replace("/")} hitSlop={12} style={styles.closeButton}>
           <MaterialIcons name="close" size={22} color="#F7F8FA" />
         </Pressable>
-        <Text style={styles.headerTitle}>{take?.isComposite ? "Reaction video" : "Reaction take"}</Text>
+        <Text style={styles.headerTitle}>Reaction video</Text>
         <View style={styles.closeButton} />
       </View>
       <View style={styles.previewCard}>
@@ -60,22 +60,18 @@ export default function ReviewScreen() {
       <View style={styles.statusCard}>
         <View style={styles.statusIcon}><MaterialIcons name="check" size={21} color="#0C1018" /></View>
         <View style={styles.statusCopy}>
-          <Text style={styles.statusTitle}>{take?.isComposite ? "Picture-in-picture video created" : "Camera reaction captured"}</Text>
-          <Text style={styles.statusText}>{take?.isComposite ? "This file contains your source clip, floating camera reaction, and both audio tracks." : "This is a separate camera take."}</Text>
+          <Text style={styles.statusTitle}>Picture-in-picture video created</Text>
+          <Text style={styles.statusText}>This file contains your source clip, floating camera reaction, and both audio tracks.</Text>
         </View>
       </View>
-      {!take?.isComposite ? <View style={styles.composeNote}>
-        <MaterialIcons name="screen-share" size={19} color="#FFB199" />
-        <Text style={styles.composeNoteText}>For a merged picture-in-picture video today, use Screen recording in the studio after starting your device recorder with microphone enabled. This screen’s camera take is a separate local backup.</Text>
-      </View> : null}
       <View style={styles.spacer} />
       <Pressable onPress={saveTake} style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
         <MaterialIcons name="save-alt" size={22} color="#FFFFFF" />
-        <Text style={styles.primaryLabel}>{take?.isComposite ? "Save reaction video" : "Save reaction take"}</Text>
+        <Text style={styles.primaryLabel}>Save reaction video</Text>
       </Pressable>
       <Pressable onPress={shareTake} style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryPressed]}>
         <MaterialIcons name="ios-share" size={21} color="#FF8A6B" />
-        <Text style={styles.secondaryLabel}>{take?.isComposite ? "Share reaction video" : "Share reaction take"}</Text>
+        <Text style={styles.secondaryLabel}>Share reaction video</Text>
       </Pressable>
       <Pressable onPress={() => router.replace("/reaction-record" as never)} style={styles.rerecordButton}>
         <Text style={styles.rerecordLabel}>Record again</Text>

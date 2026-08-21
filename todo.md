@@ -44,3 +44,6 @@
 - [x] Diagnose the camera-only review ambiguity and add explicit merged-render status plus a version bump so the next APK is distinguishable.
 - [x] Add concurrent native two-finger pinch resizing and one-finger drag movement for the floating reaction camera.
 - [ ] Confirm physical Android rendering opens only a combined reaction video review or shows a specific native merged-render error.
+- [x] Replace the camera-overlay gesture surface with a non-interactive camera preview beneath a dedicated native pan-and-pinch control layer.
+- [x] Block camera-only reaction data from ever entering the final review route; only a flagged composite output can be reviewed, saved, or shared.
+- [x] Add explicit native render-stage status and hard render-failure messaging to the recorder.
