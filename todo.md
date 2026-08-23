@@ -76,3 +76,5 @@
 - [ ] Reproduce the owner-reported continued no-op Start recording interaction in the exact preview or Android runtime and repair the active path.
 
 - [ ] Diagnose and repair the native Android reaction camera record invocation that fails to start a recording.
+
+- [ ] Produce and inspect a custom Android development or standalone build because Expo Go cannot load the required ffmpeg-expo native module.
