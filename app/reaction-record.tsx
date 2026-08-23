@@ -210,11 +210,22 @@ export default function ReactionRecordScreen() {
     }
 
     setIsRecording(true);
-    setRecordingStatus("Recording reaction now. Tap Stop recording when you are finished.");
-    player.replay();
-    player.play();
+    setRecordingStatus("Starting camera recording…");
     try {
-      const recorded = await camera.recordAsync({ maxDuration: 180 });
+      const recordingPromise = camera.recordAsync({ maxDuration: 180 });
+      setRecordingStatus("Recording reaction now. Tap Stop recording when you are finished.");
+
+      const reportSourcePlaybackIssue = () => {
+        setRecordingStatus("Your reaction camera is recording, but the source preview could not start. You can still tap Stop recording.");
+      };
+      try {
+        Promise.resolve(player.replay()).catch(reportSourcePlaybackIssue);
+        Promise.resolve(player.play()).catch(reportSourcePlaybackIssue);
+      } catch {
+        reportSourcePlaybackIssue();
+      }
+
+      const recorded = await recordingPromise;
       if (recorded?.uri) {
         setIsCompositing(true);
         setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");

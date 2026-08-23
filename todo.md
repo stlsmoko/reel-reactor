@@ -72,3 +72,7 @@
 - [x] Surface web picker failures inline and restrict iOS-only picker options to iOS so source selection cannot appear to do nothing.
 
 - [x] Diagnose and repair the no-op record action reported after entering the reaction recorder.
+
+- [ ] Reproduce the owner-reported continued no-op Start recording interaction in the exact preview or Android runtime and repair the active path.
+
+- [ ] Diagnose and repair the native Android reaction camera record invocation that fails to start a recording.
