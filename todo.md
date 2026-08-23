@@ -80,3 +80,5 @@
 - [ ] Produce and inspect a custom Android development or standalone build because Expo Go cannot load the required ffmpeg-expo native module.
 
 - [ ] Diagnose and repair the owner-reported phone-side recording failure where tapping record does not produce a reaction video.
+
+- [ ] Remove the camera-only review and screen-recording fallback; export one clean MP4 with source reel, positioned reaction overlay, source audio, and microphone audio.

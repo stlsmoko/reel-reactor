@@ -337,7 +337,7 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "MERGED VIDEO BUILD · v1.0.4"}</Text>
+          <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.5"}</Text>
         </View> : null}
 
       </View>
