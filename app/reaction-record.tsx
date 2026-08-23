@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { clampOverlay, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
 import { getCurrentSource, setCurrentReaction } from "@/lib/reaction-session";
 import { composeReactionVideo } from "@/lib/video-compositor";
 
@@ -212,20 +212,17 @@ export default function ReactionRecordScreen() {
     setIsRecording(true);
     setRecordingStatus("Starting camera recording…");
     try {
-      const recordingPromise = camera.recordAsync({ maxDuration: 180 });
       setRecordingStatus("Recording reaction now. Tap Stop recording when you are finished.");
-
-      const reportSourcePlaybackIssue = () => {
-        setRecordingStatus("Your reaction camera is recording, but the source preview could not start. You can still tap Stop recording.");
-      };
-      try {
-        Promise.resolve(player.replay()).catch(reportSourcePlaybackIssue);
-        Promise.resolve(player.play()).catch(reportSourcePlaybackIssue);
-      } catch {
-        reportSourcePlaybackIssue();
-      }
-
-      const recorded = await recordingPromise;
+      const recorded = await beginReactionCameraRecording({
+        startCameraRecording: () => camera.recordAsync({ maxDuration: 180 }),
+        startSourcePlayback: async () => {
+          await player.replay();
+          await player.play();
+        },
+        onSourcePlaybackIssue: () => {
+          setRecordingStatus("Your reaction camera is recording, but the source preview could not start. You can still tap Stop recording.");
+        },
+      });
       if (recorded?.uri) {
         setIsCompositing(true);
         setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");

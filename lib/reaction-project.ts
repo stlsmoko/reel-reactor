@@ -42,6 +42,20 @@ export function getRecordingStartBlocker(input: {
   return null;
 }
 
+export function beginReactionCameraRecording<T>(input: {
+  startCameraRecording: () => Promise<T>;
+  startSourcePlayback: () => void | Promise<void>;
+  onSourcePlaybackIssue: () => void;
+}): Promise<T> {
+  const recordingPromise = input.startCameraRecording();
+  try {
+    Promise.resolve(input.startSourcePlayback()).catch(input.onSourcePlaybackIssue);
+  } catch {
+    input.onSourcePlaybackIssue();
+  }
+  return recordingPromise;
+}
+
 export function clampOverlay(
   position: OverlayPosition,
   bounds: { width: number; height: number },

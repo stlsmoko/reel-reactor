@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampOverlay, getRecordingStartBlocker, MAX_SOURCE_DURATION_MS, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, MAX_SOURCE_DURATION_MS, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
 
 describe("source video validation", () => {
   it("requires a local video URI", () => {
@@ -30,6 +30,24 @@ describe("recording start availability", () => {
   it("allows native recording only after the camera preview is ready", () => {
     expect(getRecordingStartBlocker({ platform: "android", cameraReady: false, hasCameraRef: false })).toContain("Camera preview is not ready");
     expect(getRecordingStartBlocker({ platform: "android", cameraReady: true, hasCameraRef: true })).toBeNull();
+  });
+
+  it("starts the camera before source playback and preserves the recording when playback fails", async () => {
+    const events: string[] = [];
+    const recording = beginReactionCameraRecording({
+      startCameraRecording: async () => {
+        events.push("camera");
+        return "file:///reaction.mp4";
+      },
+      startSourcePlayback: () => {
+        events.push("source");
+        throw new Error("source unavailable");
+      },
+      onSourcePlaybackIssue: () => events.push("source-error"),
+    });
+
+    await expect(recording).resolves.toBe("file:///reaction.mp4");
+    expect(events).toEqual(["camera", "source", "source-error"]);
   });
 });
 
