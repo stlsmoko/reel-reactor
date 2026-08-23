@@ -36,8 +36,11 @@ android {
     defaultConfig {
         minSdk = 24
 
+        // The vendored FFmpeg command archive and shared libraries are shipped for arm64 only.
+        // Building other ABIs makes CMake search for non-existent JNI assets during APK packaging.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters.clear()
+            abiFilters += "arm64-v8a"
         }
 
         externalNativeBuild {

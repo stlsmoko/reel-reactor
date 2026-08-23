@@ -88,3 +88,13 @@
 - [ ] Verify the deployed build artifact after the owner’s completed build continues to display stale version 1.0.1.
 
 - [ ] Build a desktop-browser reaction recorder with local source playback, webcam/microphone capture, movable overlay, and an exported combined video.
+
+- [ ] Verify and complete automatic one-file composition of the selected reel, positioned reaction camera, source audio, and microphone audio.
+
+- [ ] Support desktop composition through Web APIs and determine whether Electron packaging is needed for reliable local MP4 export.
+
+- [ ] Build an installable Reel Reactor desktop application with reliable local MP4 composition and export.
+
+- [ ] Make the current mobile build automatically produce a verified combined reel-and-reaction video instead of any camera-only or screen-recording result.
+
+- [ ] Diagnose and fix the Android APK build failure that flashes near 60 percent in the project build interface.
