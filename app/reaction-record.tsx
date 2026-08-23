@@ -41,6 +41,7 @@ export default function ReactionRecordScreen() {
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const [overlayGestureStatus, setOverlayGestureStatus] = useState("Drag to move • pinch to resize");
+  const recordAttempt = useRef(0);
   const dragStart = useRef<OverlayPosition>(overlayPosition);
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
   const overlaySizeRef = useRef(overlaySize);
@@ -170,6 +171,8 @@ export default function ReactionRecordScreen() {
   }
 
   async function toggleRecording() {
+    const attempt = ++recordAttempt.current;
+    setRecordingStatus(`${isRecording ? "Stop" : "Start"} request #${attempt} received.`);
     if (isRecording) {
       setRecordingStatus("Finishing and saving your reaction…");
       try {
@@ -181,7 +184,7 @@ export default function ReactionRecordScreen() {
       return;
     }
 
-    setRecordingStatus("Checking camera and microphone permissions…");
+    setRecordingStatus(`Start request #${attempt}: checking camera and microphone permissions…`);
     const granted = await ensurePermissions();
     if (!granted) {
       Alert.alert("Camera and microphone needed", "Allow both permissions so Reel Reactor can record your reaction with sound.");
@@ -210,9 +213,9 @@ export default function ReactionRecordScreen() {
     }
 
     setIsRecording(true);
-    setRecordingStatus("Starting camera recording…");
+    setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
     try {
-      setRecordingStatus("Recording reaction now. Tap Stop recording when you are finished.");
+      setRecordingStatus(`Start request #${attempt}: native recorder started. Tap Stop recording when you are finished.`);
       const recorded = await beginReactionCameraRecording({
         startCameraRecording: () => camera.recordAsync({ maxDuration: 180 }),
         startSourcePlayback: async () => {
@@ -316,7 +319,13 @@ export default function ReactionRecordScreen() {
 
         {!isCleanScene ? <View style={styles.bottomDock}>
           <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
-          <Pressable disabled={isCompositing} onPress={toggleRecording} style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}>
+          <Pressable
+            disabled={isCompositing}
+            hitSlop={12}
+            onPressIn={() => !isCompositing && setRecordingStatus("Record control touched. Starting…")}
+            onPress={toggleRecording}
+            style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}
+          >
             <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : isBrowserPreview ? "phone-android" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
             <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
           </Pressable>
@@ -356,7 +365,7 @@ const styles = StyleSheet.create({
   cameraRetryPressed: { opacity: 0.72 },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  bottomDock: { alignItems: "center", bottom: 0, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0 },
+  bottomDock: { alignItems: "center", bottom: 0, elevation: 30, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0, zIndex: 30 },
   instruction: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginBottom: 13, textAlign: "center", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 5 },
   startRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.95)", borderRadius: 18, borderWidth: 2, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },

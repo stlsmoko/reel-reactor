@@ -78,3 +78,5 @@
 - [ ] Diagnose and repair the native Android reaction camera record invocation that fails to start a recording.
 
 - [ ] Produce and inspect a custom Android development or standalone build because Expo Go cannot load the required ffmpeg-expo native module.
+
+- [ ] Diagnose and repair the owner-reported phone-side recording failure where tapping record does not produce a reaction video.
