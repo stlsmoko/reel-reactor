@@ -1,5 +1,4 @@
 import * as FileSystem from "expo-file-system/legacy";
-import { execute, FFmpegError } from "ffmpeg-expo";
 
 import { buildCompositeCommand } from "@/lib/video-compositor-command";
 
@@ -59,9 +58,17 @@ export async function composeReactionVideo(request: CompositeRequest) {
   const outputPath = `${getCacheDirectory()}reel-reactor-composite-${Date.now()}.mp4`;
   const command = buildCompositeCommand({ ...request, sourcePath, reactionPath, outputPath });
   const logLines: string[] = [];
+  let ffmpeg: typeof import("ffmpeg-expo");
 
   try {
-    await execute(command.args, {
+    ffmpeg = await import("ffmpeg-expo");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown native module error";
+    throw new Error(`The video engine could not load on this device: ${message}`);
+  }
+
+  try {
+    await ffmpeg.execute(command.args, {
       onProgress: (progress) => request.onProgress?.(progress.time),
       onLog: (log) => {
         if (log.message.trim()) {
@@ -72,7 +79,7 @@ export async function composeReactionVideo(request: CompositeRequest) {
       logLevel: "info",
     });
   } catch (error) {
-    const nativeOutput = error instanceof FFmpegError ? error.output.trim() : "";
+    const nativeOutput = error instanceof ffmpeg.FFmpegError ? error.output.trim() : "";
     const diagnostic = nativeOutput || logLines.join("\n");
     throw new Error(diagnostic.slice(-1_200) || "The device could not render the merged reaction video.");
   }

@@ -4,7 +4,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { normalizeSharedLink, validateSourceVideo } from "@/lib/reaction-project";
@@ -42,6 +42,18 @@ export default function HomeScreen() {
       const message = validateSourceVideo(asset);
       if (message) {
         Alert.alert("Choose another clip", message);
+        return;
+      }
+
+      if (Platform.OS === "web") {
+        setCurrentSource({
+          uri: asset.uri,
+          name: asset.fileName ?? "Selected video",
+          durationMs: asset.duration,
+          width: asset.width,
+          height: asset.height,
+        });
+        router.push("/source-setup" as never);
         return;
       }
 

@@ -61,3 +61,9 @@
 - [x] Remove any unverified native dependency or interaction-layer change that can prevent the recorder from opening or responding on the owner’s Android phone.
 - [ ] Do not ask for another publish or device test until the standalone APK path itself has been compiled and inspected.
 - [x] Prevent the review screen from importing Android-only media-library code in the web bundle, which currently produces a server error during preview loading.
+
+- [ ] Checkpoint the web-safe source selection and persistent preview startup repairs before restarting the managed development service.
+
+- [x] Diagnose and repair the no-op source-video selection action reported in the preview.
+
+- [x] Diagnose and repair the no-op source-video selection action reported in the preview.
