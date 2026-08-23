@@ -84,3 +84,7 @@
 - [ ] Remove the camera-only review and screen-recording fallback; export one clean MP4 with source reel, positioned reaction overlay, source audio, and microphone audio.
 
 - [ ] Diagnose why the owner’s completed APK build displays stale version 1.0.1 instead of the current v1.0.5 / code 6 checkpoint.
+
+- [ ] Verify the deployed build artifact after the owner’s completed build continues to display stale version 1.0.1.
+
+- [ ] Build a desktop-browser reaction recorder with local source playback, webcam/microphone capture, movable overlay, and an exported combined video.
