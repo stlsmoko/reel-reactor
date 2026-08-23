@@ -34,7 +34,6 @@ export default function HomeScreen() {
       const pickerOptions: ImagePicker.ImagePickerOptions = {
         mediaTypes: ["videos"],
         allowsMultipleSelection: false,
-        videoMaxDuration: 180,
         quality: 1,
       };
       if (Platform.OS === "ios") {

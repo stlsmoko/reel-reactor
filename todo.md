@@ -100,3 +100,11 @@
 - [ ] Diagnose and fix the Android APK build failure that flashes near 60 percent in the project build interface.
 
 - [x] Fix the demonstrated FFmpeg `setsar` filter-chain error that prevents the mobile combined MP4 renderer from initializing.
+
+- [x] Preserve the selected reaction bubble shape in the rendered MP4 instead of exporting a square overlay.
+- [x] Correct composite audio mixing so source and reaction audio are normalized before the exported video is encoded.
+- [x] Let the creator pause and resume source-video playback while the reaction camera continues recording.
+- [x] Support larger local source videos without unnecessary app-level size rejection.
+- [x] Add selectable reaction styles, including non-circular shapes and a green-screen/keyed overlay mode.
+- [x] Make reaction-studio controls vertically reachable on small phones with appropriate scrolling and safe bottom spacing.
+- [x] Complete and regression-check every current output and studio refinement before requesting one consolidated replacement APK.

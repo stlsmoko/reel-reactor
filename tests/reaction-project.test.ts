@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, MAX_SOURCE_DURATION_MS, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
 
 describe("source video validation", () => {
   it("requires a local video URI", () => {
     expect(validateSourceVideo({ uri: null })).toBe("Choose a video before opening the studio.");
   });
 
-  it("limits the personal MVP to a practical source duration", () => {
-    expect(validateSourceVideo({ uri: "file:///clip.mov", type: "video", duration: MAX_SOURCE_DURATION_MS + 1 })).toContain("under three minutes");
+  it("accepts long local source videos instead of enforcing an arbitrary duration cap", () => {
+    expect(validateSourceVideo({ uri: "file:///clip.mov", type: "video", duration: 3_600_000 })).toBeNull();
   });
 
   it("accepts a valid local video", () => {

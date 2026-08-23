@@ -3,8 +3,6 @@ export type OverlayPosition = {
   y: number;
 };
 
-export const MAX_SOURCE_DURATION_MS = 180_000;
-
 export function validateSourceVideo(input: {
   uri?: string | null;
   type?: string | null;
@@ -12,9 +10,6 @@ export function validateSourceVideo(input: {
 }): string | null {
   if (!input.uri) return "Choose a video before opening the studio.";
   if (input.type && input.type !== "video") return "Choose a video file rather than an image.";
-  if (input.duration && input.duration > MAX_SOURCE_DURATION_MS) {
-    return "For the first version, choose a clip under three minutes.";
-  }
   return null;
 }
 

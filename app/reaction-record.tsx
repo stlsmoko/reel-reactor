@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
@@ -12,6 +12,8 @@ import { composeReactionVideo } from "@/lib/video-compositor";
 
 const MIN_OVERLAY_SIZE = 96;
 const MAX_OVERLAY_SIZE = 184;
+type OverlayStyle = "circle" | "square" | "green-screen";
+type SourcePause = { sourceTimeSec: number; durationSec: number };
 
 function getTouchDistance(touches: { pageX: number; pageY: number }[]) {
   if (touches.length < 2) return 0;
@@ -41,6 +43,9 @@ export default function ReactionRecordScreen() {
   const [overlaySize, setOverlaySize] = useState(132);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const [overlayGestureStatus, setOverlayGestureStatus] = useState("Drag to move • pinch to resize");
+  const [overlayStyle, setOverlayStyle] = useState<OverlayStyle>("circle");
+  const [isSourcePaused, setIsSourcePaused] = useState(false);
+  const [sourcePauses, setSourcePauses] = useState<SourcePause[]>([]);
   const recordAttempt = useRef(0);
   const dragStart = useRef<OverlayPosition>(overlayPosition);
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
@@ -48,6 +53,7 @@ export default function ReactionRecordScreen() {
   const pinchStartSize = useRef(overlaySize);
   const pinchStartDistance = useRef(0);
   const isPinching = useRef(false);
+  const sourcePauseStart = useRef<{ sourceTimeSec: number; wallTimeMs: number } | null>(null);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -170,6 +176,31 @@ export default function ReactionRecordScreen() {
     setCameraInstanceKey((key) => key + 1);
   }
 
+  function closeOpenSourcePause() {
+    const activePause = sourcePauseStart.current;
+    if (!activePause) return sourcePauses;
+    const durationSec = Math.max(0, (Date.now() - activePause.wallTimeMs) / 1_000);
+    const completed = [...sourcePauses, { sourceTimeSec: activePause.sourceTimeSec, durationSec }];
+    sourcePauseStart.current = null;
+    setSourcePauses(completed);
+    setIsSourcePaused(false);
+    return completed;
+  }
+
+  function toggleSourcePause() {
+    if (!isRecording || isCompositing) return;
+    if (isSourcePaused) {
+      closeOpenSourcePause();
+      player.play();
+      setRecordingStatus("Reel resumed while your reaction recording continues.");
+      return;
+    }
+    player.pause();
+    sourcePauseStart.current = { sourceTimeSec: player.currentTime, wallTimeMs: Date.now() };
+    setIsSourcePaused(true);
+    setRecordingStatus("Reel paused. Your camera and microphone are still recording so you can talk over this moment.");
+  }
+
   async function toggleRecording() {
     const attempt = ++recordAttempt.current;
     setRecordingStatus(`${isRecording ? "Stop" : "Start"} request #${attempt} received.`);
@@ -212,12 +243,15 @@ export default function ReactionRecordScreen() {
       return;
     }
 
+    setSourcePauses([]);
+    sourcePauseStart.current = null;
+    setIsSourcePaused(false);
     setIsRecording(true);
     setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
     try {
       setRecordingStatus(`Start request #${attempt}: native recorder started. Tap Stop recording when you are finished.`);
       const recorded = await beginReactionCameraRecording({
-        startCameraRecording: () => camera.recordAsync({ maxDuration: 180 }),
+        startCameraRecording: () => camera.recordAsync(),
         startSourcePlayback: async () => {
           await player.replay();
           await player.play();
@@ -227,6 +261,7 @@ export default function ReactionRecordScreen() {
         },
       });
       if (recorded?.uri) {
+        const completedSourcePauses = closeOpenSourcePause();
         setIsCompositing(true);
         setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");
         const compositeUri = await composeReactionVideo({
@@ -234,6 +269,8 @@ export default function ReactionRecordScreen() {
           reactionUri: recorded.uri,
           overlay: { ...overlayPosition, size: overlaySize },
           studioSize: { width, height },
+          overlayStyle,
+          sourcePauses: completedSourcePauses,
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
@@ -278,13 +315,13 @@ export default function ReactionRecordScreen() {
           </Pressable>
         </View> : null}
 
-        <View collapsable={false} pointerEvents="box-only" {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlaySize / 2, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
+        <View collapsable={false} pointerEvents="box-only" {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlayStyle === "circle" ? overlaySize / 2 : 18, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
             {cameraPermission?.granted ? (
               <>
                 <CameraView
                   key={cameraInstanceKey}
                   ref={cameraRef}
-                  style={styles.camera}
+                  style={[styles.camera, { borderRadius: overlayStyle === "circle" ? overlaySize / 2 : 15 }]}
                   pointerEvents="none"
                   facing={facing}
                   mode="video"
@@ -317,27 +354,42 @@ export default function ReactionRecordScreen() {
             </View> : null}
         </View>
 
-        {!isCleanScene ? <View style={styles.bottomDock}>
-          <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
-          <Pressable
-            disabled={isCompositing}
-            hitSlop={12}
-            onPressIn={() => !isCompositing && setRecordingStatus("Record control touched. Starting…")}
-            onPress={toggleRecording}
-            style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}
-          >
-            <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : isBrowserPreview ? "phone-android" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
-            <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
-          </Pressable>
-          <View style={[styles.recordingStatusRow, isRecording && styles.recordingStatusActive]}>
-            <MaterialIcons name={isRecording ? "fiber-manual-record" : "info-outline"} size={15} color={isRecording ? "#FFB199" : "#C1C9D4"} />
-            <Text style={[styles.recordingStatusText, isRecording && styles.recordingStatusTextActive]}>{recordingStatus}</Text>
-          </View>
-          {cameraStatus === "error" ? <Pressable onPress={retryCameraPreview} style={({ pressed }) => [styles.retryCameraRow, pressed && styles.modePressed]}>
-            <MaterialIcons name="refresh" size={16} color="#FFB199" />
-            <Text style={styles.retryCameraLabel}>Retry camera</Text>
-          </Pressable> : null}
-          <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.6"}</Text>
+        {!isCleanScene ? <View style={[styles.bottomDock, { maxHeight: Math.max(260, Math.min(height * 0.48, 440)) }]}>
+          <ScrollView contentContainerStyle={styles.controlScrollContent} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
+            <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
+            {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
+              <MaterialIcons name={isSourcePaused ? "play-arrow" : "pause"} size={22} color="#FFFFFF" />
+              <Text style={styles.sourcePauseLabel}>{isSourcePaused ? "Resume reel" : "Pause reel & talk"}</Text>
+            </Pressable> : null}
+            {!isRecording && !isCompositing ? <View style={styles.styleSelector}>
+              <Text style={styles.styleSelectorLabel}>REACTION STYLE</Text>
+              <View style={styles.styleRow}>
+                {(["circle", "square", "green-screen"] as OverlayStyle[]).map((style) => <Pressable key={style} onPress={() => setOverlayStyle(style)} style={({ pressed }) => [styles.styleButton, overlayStyle === style && styles.styleButtonSelected, pressed && styles.modePressed]}>
+                  <Text style={[styles.styleButtonLabel, overlayStyle === style && styles.styleButtonLabelSelected]}>{style === "circle" ? "Bubble" : style === "square" ? "Square" : "Green key"}</Text>
+                </Pressable>)}
+              </View>
+              {overlayStyle === "green-screen" ? <Text style={styles.greenScreenHint}>Use a bright green background behind you. The export removes that green, leaving only you over the reel.</Text> : null}
+            </View> : null}
+            <Pressable
+              disabled={isCompositing}
+              hitSlop={12}
+              onPressIn={() => !isCompositing && setRecordingStatus("Record control touched. Starting…")}
+              onPress={toggleRecording}
+              style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}
+            >
+              <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : isBrowserPreview ? "phone-android" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
+              <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
+            </Pressable>
+            <View style={[styles.recordingStatusRow, isRecording && styles.recordingStatusActive]}>
+              <MaterialIcons name={isRecording ? "fiber-manual-record" : "info-outline"} size={15} color={isRecording ? "#FFB199" : "#C1C9D4"} />
+              <Text style={[styles.recordingStatusText, isRecording && styles.recordingStatusTextActive]}>{recordingStatus}</Text>
+            </View>
+            {cameraStatus === "error" ? <Pressable onPress={retryCameraPreview} style={({ pressed }) => [styles.retryCameraRow, pressed && styles.modePressed]}>
+              <MaterialIcons name="refresh" size={16} color="#FFB199" />
+              <Text style={styles.retryCameraLabel}>Retry camera</Text>
+            </Pressable> : null}
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.7"}</Text>
+          </ScrollView>
         </View> : null}
 
       </View>
@@ -365,7 +417,8 @@ const styles = StyleSheet.create({
   cameraRetryPressed: { opacity: 0.72 },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  bottomDock: { alignItems: "center", bottom: 0, elevation: 30, left: 0, paddingBottom: 7, paddingHorizontal: 22, position: "absolute", right: 0, zIndex: 30 },
+  bottomDock: { bottom: 0, elevation: 30, left: 0, position: "absolute", right: 0, zIndex: 30 },
+  controlScrollContent: { alignItems: "center", paddingBottom: 14, paddingHorizontal: 22, paddingTop: 8 },
   instruction: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginBottom: 13, textAlign: "center", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 5 },
   startRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.95)", borderRadius: 18, borderWidth: 2, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
@@ -375,6 +428,16 @@ const styles = StyleSheet.create({
   recordingStatusActive: { borderColor: "rgba(255,92,53,0.75)", borderWidth: 1 },
   recordingStatusText: { color: "#C1C9D4", flex: 1, fontSize: 11, fontWeight: "600", lineHeight: 15 },
   recordingStatusTextActive: { color: "#FFDFD6" },
+  sourcePauseButton: { alignItems: "center", backgroundColor: "rgba(27, 42, 65, 0.94)", borderColor: "rgba(255,255,255,0.48)", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, marginBottom: 10, paddingHorizontal: 16, paddingVertical: 11, width: "100%" },
+  sourcePauseLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  styleSelector: { backgroundColor: "rgba(12,16,24,0.86)", borderColor: "rgba(255,255,255,0.16)", borderRadius: 14, borderWidth: 1, marginBottom: 10, padding: 10, width: "100%" },
+  styleSelectorLabel: { color: "#AAB3C2", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginBottom: 8 },
+  styleRow: { flexDirection: "row", gap: 7 },
+  styleButton: { alignItems: "center", borderColor: "#465267", borderRadius: 10, borderWidth: 1, flex: 1, paddingHorizontal: 6, paddingVertical: 9 },
+  styleButtonSelected: { backgroundColor: "#FF5C35", borderColor: "#FFB199" },
+  styleButtonLabel: { color: "#C1C9D4", fontSize: 11, fontWeight: "800" },
+  styleButtonLabelSelected: { color: "#FFFFFF" },
+  greenScreenHint: { color: "#AAB3C2", fontSize: 10, lineHeight: 14, marginTop: 8 },
   buildLabel: { color: "#FFB199", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 10 },
   retryCameraRow: { alignItems: "center", flexDirection: "row", gap: 5, marginTop: 8, paddingVertical: 3 },
   retryCameraLabel: { color: "#FFB199", fontSize: 12, fontWeight: "800" },

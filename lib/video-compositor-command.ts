@@ -1,10 +1,68 @@
 export type CompositeGeometry = {
   overlay: { x: number; y: number; size: number };
   studioSize: { width: number; height: number };
+  overlayStyle?: "circle" | "square" | "green-screen";
+  sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
 };
 
 const OUTPUT_WIDTH = 720;
 const OUTPUT_HEIGHT = 1280;
+
+function seconds(value: number) {
+  return Math.max(0, Math.round(value * 1_000) / 1_000).toString();
+}
+
+function backgroundChain(input: string, output: string) {
+  return `${input}scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${output}`;
+}
+
+function buildSourceTimelineFilters(pauses: CompositeGeometry["sourcePauses"] = []) {
+  const validPauses = pauses
+    .filter((pause) => pause.durationSec > 0.05 && pause.sourceTimeSec >= 0)
+    .sort((left, right) => left.sourceTimeSec - right.sourceTimeSec);
+
+  if (validPauses.length === 0) {
+    return [
+      backgroundChain("[0:v]", "[background]"),
+      "[0:a]aresample=48000[source_audio]",
+    ];
+  }
+
+  const filters: string[] = [];
+  const videoParts: string[] = [];
+  const audioParts: string[] = [];
+  let sourceStart = 0;
+  let part = 0;
+
+  for (const pause of validPauses) {
+    if (pause.sourceTimeSec <= sourceStart) continue;
+    const sourceEnd = seconds(pause.sourceTimeSec);
+    const duration = seconds(pause.durationSec);
+    const videoPart = `source_video_${part}`;
+    const freezePart = `source_freeze_${part}`;
+    const audioPart = `source_audio_${part}`;
+    const silencePart = `source_silence_${part}`;
+
+    filters.push(backgroundChain(`[0:v]trim=start=${seconds(sourceStart)}:end=${sourceEnd},setpts=PTS-STARTPTS,`, `[${videoPart}]`));
+    filters.push(`[${videoPart}]tpad=stop_mode=clone:stop_duration=${duration},setpts=PTS-STARTPTS[${freezePart}]`);
+    filters.push(`[0:a]atrim=start=${seconds(sourceStart)}:end=${sourceEnd},asetpts=PTS-STARTPTS,aresample=48000[${audioPart}]`);
+    filters.push(`anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=${duration},asetpts=PTS-STARTPTS[${silencePart}]`);
+    videoParts.push(`[${freezePart}]`);
+    audioParts.push(`[${audioPart}]`, `[${silencePart}]`);
+    sourceStart = pause.sourceTimeSec;
+    part += 1;
+  }
+
+  const tailVideo = "source_video_tail";
+  const tailAudio = "source_audio_tail";
+  filters.push(backgroundChain(`[0:v]trim=start=${seconds(sourceStart)},setpts=PTS-STARTPTS,`, `[${tailVideo}]`));
+  filters.push(`[0:a]atrim=start=${seconds(sourceStart)},asetpts=PTS-STARTPTS,aresample=48000[${tailAudio}]`);
+  videoParts.push(`[${tailVideo}]`);
+  audioParts.push(`[${tailAudio}]`);
+  filters.push(`${videoParts.join("")}concat=n=${videoParts.length}:v=1:a=0[background]`);
+  filters.push(`${audioParts.join("")}concat=n=${audioParts.length}:v=0:a=1[source_audio]`);
+  return filters;
+}
 
 export function getOutputOverlay({ overlay, studioSize }: CompositeGeometry) {
   const scaleX = OUTPUT_WIDTH / studioSize.width;
@@ -22,11 +80,24 @@ export function buildCompositeCommand(
   request: CompositeGeometry & { sourcePath: string; reactionPath: string; outputPath: string },
 ) {
   const overlay = getOutputOverlay(request);
+  const overlayStyle = request.overlayStyle ?? "circle";
+  const reactionBase = `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1`;
+  const reactionFilters = overlayStyle === "circle"
+    ? [
+        `${reactionBase},format=rgba[reaction_rgba]`,
+        `color=c=black:s=${overlay.size}x${overlay.size},format=gray,geq=lum='if(lte(hypot(X-W/2\\,Y-H/2)\\,W/2-3)\\,255\\,0)'[reaction_alpha]`,
+        "[reaction_rgba][reaction_alpha]alphamerge[reaction]",
+      ]
+    : overlayStyle === "green-screen"
+      ? [`${reactionBase},format=rgba,chromakey=0x00FF00:0.18:0.08[reaction]`]
+      : [`${reactionBase}[reaction]`];
   const filter = [
-    `[0:v]scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[background]`,
-    `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1[reaction]`,
-    `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1[video]`,
-    "[0:a][1:a]amix=inputs=2:duration=shortest:dropout_transition=0[audio]",
+    ...buildSourceTimelineFilters(request.sourcePauses),
+    ...reactionFilters,
+    `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1:format=auto[video]`,
+    "[source_audio]volume=0.85[source_audio_scaled]",
+    "[1:a]aresample=48000,volume=1.0[reaction_audio]",
+    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=1[audio]",
   ].join(";");
 
   return {

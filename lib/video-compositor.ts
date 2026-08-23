@@ -7,6 +7,8 @@ export type CompositeRequest = {
   reactionUri: string;
   overlay: { x: number; y: number; size: number };
   studioSize: { width: number; height: number };
+  overlayStyle?: "circle" | "square" | "green-screen";
+  sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   onProgress?: (processedMs: number) => void;
 };
 
