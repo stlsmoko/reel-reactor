@@ -11,7 +11,8 @@ export default function ReviewScreen() {
   const takeUri = take?.uri;
   const safeTakeUri = takeUri ?? "";
   const player = useVideoPlayer(takeUri ?? null, (videoPlayer) => {
-    videoPlayer.loop = true;
+    videoPlayer.loop = false;
+    videoPlayer.muted = false;
   });
 
   if (!takeUri || !take?.isComposite) {

@@ -108,3 +108,7 @@
 - [x] Add selectable reaction styles, including non-circular shapes and a green-screen/keyed overlay mode.
 - [x] Make reaction-studio controls vertically reachable on small phones with appropriate scrolling and safe bottom spacing.
 - [x] Complete and regression-check every current output and studio refinement before requesting one consolidated replacement APK.
+
+- [x] Remove the device-observed duplicate source playback/audio during final review playback.
+- [x] Ensure the selected Bubble, Square, or Green key style reaches the native renderer request and render command.
+- [ ] Validate v1.0.8 on a physical phone: review has one playback/audio track, Bubble is round, and Green key removes a real green backdrop.

@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { setAudioModeAsync } from "expo-audio";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -58,6 +59,24 @@ export default function ReactionRecordScreen() {
   useEffect(() => {
     if (!source) router.replace("/");
   }, [source]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    setAudioModeAsync({
+      allowsRecording: true,
+      interruptionMode: "doNotMix",
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: true,
+    }).catch(() => undefined);
+    return () => {
+      try {
+        player.pause();
+      } catch {
+        // The hook owns player disposal; this guard only prevents a stale source player from sounding in review.
+      }
+      setAudioModeAsync({ allowsRecording: false, interruptionMode: "mixWithOthers", shouldRouteThroughEarpiece: false }).catch(() => undefined);
+    };
+  }, [player]);
 
   useEffect(() => {
     let isActive = true;
@@ -207,6 +226,7 @@ export default function ReactionRecordScreen() {
     if (isRecording) {
       setRecordingStatus("Finishing and saving your reaction…");
       try {
+        player.pause();
         cameraRef.current?.stopRecording();
       } catch (error) {
         setRecordingStatus(`Could not stop the recording: ${error instanceof Error ? error.message : "unknown camera error"}`);
@@ -263,7 +283,8 @@ export default function ReactionRecordScreen() {
       if (recorded?.uri) {
         const completedSourcePauses = closeOpenSourcePause();
         setIsCompositing(true);
-        setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");
+        const styleLabel = overlayStyle === "circle" ? "Bubble" : overlayStyle === "square" ? "Square" : "Green key";
+        setRecordingStatus(`Rendering ${styleLabel} style: source clip + reaction camera + audio…`);
         const compositeUri = await composeReactionVideo({
           sourceUri: source!.uri,
           reactionUri: recorded.uri,
@@ -274,6 +295,7 @@ export default function ReactionRecordScreen() {
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
+        player.pause();
         setRecordingStatus("Combined reaction video created. Opening review…");
         router.replace("/review" as never);
       } else {
@@ -388,7 +410,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.7"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.8"}</Text>
           </ScrollView>
         </View> : null}
 
