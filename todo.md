@@ -82,3 +82,5 @@
 - [ ] Diagnose and repair the owner-reported phone-side recording failure where tapping record does not produce a reaction video.
 
 - [ ] Remove the camera-only review and screen-recording fallback; export one clean MP4 with source reel, positioned reaction overlay, source audio, and microphone audio.
+
+- [ ] Diagnose why the owner’s completed APK build displays stale version 1.0.1 instead of the current v1.0.5 / code 6 checkpoint.
