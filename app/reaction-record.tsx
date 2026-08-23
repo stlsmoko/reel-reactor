@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { clampOverlay, type OverlayPosition } from "@/lib/reaction-project";
+import { clampOverlay, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
 import { getCurrentSource, setCurrentReaction } from "@/lib/reaction-session";
 import { composeReactionVideo } from "@/lib/video-compositor";
 
@@ -21,6 +21,7 @@ function getTouchDistance(touches: { pageX: number; pageY: number }[]) {
 
 export default function ReactionRecordScreen() {
   const source = getCurrentSource();
+  const isBrowserPreview = Platform.OS === "web";
   const cameraRef = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
   const player = useVideoPlayer(source?.uri ?? null, (videoPlayer) => {
@@ -180,11 +181,6 @@ export default function ReactionRecordScreen() {
       return;
     }
 
-    if (Platform.OS === "web") {
-      Alert.alert("Use a phone for recording", "The studio preview works here, but recording requires the native iPhone or Android build.");
-      return;
-    }
-
     setRecordingStatus("Checking camera and microphone permissions…");
     const granted = await ensurePermissions();
     if (!granted) {
@@ -192,10 +188,24 @@ export default function ReactionRecordScreen() {
       setRecordingStatus("Camera and microphone permission are required before recording can start.");
       return;
     }
-    if (!isCameraReady || !cameraRef.current) {
+    const recordingBlocker = getRecordingStartBlocker({
+      platform: Platform.OS,
+      cameraReady: isCameraReady,
+      hasCameraRef: Boolean(cameraRef.current),
+    });
+    if (recordingBlocker) {
+      setRecordingStatus(recordingBlocker);
+      if (!isBrowserPreview) {
+        setCameraStatus("starting");
+        Alert.alert("Camera is still opening", recordingBlocker);
+      }
+      return;
+    }
+
+    const camera = cameraRef.current;
+    if (!camera) {
       setCameraStatus("starting");
-      setRecordingStatus("Camera preview is not ready yet. Wait for Ready to react, then try again.");
-      Alert.alert("Camera is still opening", "Wait for the top label to say Ready to react, then tap Start recording.");
+      setRecordingStatus("Camera preview is not ready yet. Wait for Ready to react, then tap Start recording.");
       return;
     }
 
@@ -204,7 +214,7 @@ export default function ReactionRecordScreen() {
     player.replay();
     player.play();
     try {
-      const recorded = await cameraRef.current.recordAsync({ maxDuration: 180 });
+      const recorded = await camera.recordAsync({ maxDuration: 180 });
       if (recorded?.uri) {
         setIsCompositing(true);
         setRecordingStatus("Rendering the merged video: source clip + camera bubble + audio…");
@@ -299,8 +309,8 @@ export default function ReactionRecordScreen() {
         {!isCleanScene ? <View style={styles.bottomDock}>
           <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
           <Pressable disabled={isCompositing} onPress={toggleRecording} style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}>
-            <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
-            <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : "Start recording"}</Text>
+            <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : isBrowserPreview ? "phone-android" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
+            <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
           </Pressable>
           <View style={[styles.recordingStatusRow, isRecording && styles.recordingStatusActive]}>
             <MaterialIcons name={isRecording ? "fiber-manual-record" : "info-outline"} size={15} color={isRecording ? "#FFB199" : "#C1C9D4"} />
@@ -310,7 +320,7 @@ export default function ReactionRecordScreen() {
             <MaterialIcons name="refresh" size={16} color="#FFB199" />
             <Text style={styles.retryCameraLabel}>Retry camera</Text>
           </Pressable> : null}
-          <Text style={styles.buildLabel}>MERGED VIDEO BUILD · v1.0.4</Text>
+          <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "MERGED VIDEO BUILD · v1.0.4"}</Text>
         </View> : null}
 
       </View>

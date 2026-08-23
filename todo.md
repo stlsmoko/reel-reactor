@@ -70,3 +70,5 @@
 
 - [ ] Surface web picker failures inline and restrict iOS-only picker options to iOS so source selection cannot appear to do nothing.
 - [x] Surface web picker failures inline and restrict iOS-only picker options to iOS so source selection cannot appear to do nothing.
+
+- [x] Diagnose and repair the no-op record action reported after entering the reaction recorder.

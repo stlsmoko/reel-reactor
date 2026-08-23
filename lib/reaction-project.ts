@@ -28,6 +28,20 @@ export function normalizeSharedLink(value: string): string | null {
   }
 }
 
+export function getRecordingStartBlocker(input: {
+  platform: string;
+  cameraReady: boolean;
+  hasCameraRef: boolean;
+}): string | null {
+  if (input.platform === "web") {
+    return "Browser preview cannot record a reaction. Open Reel Reactor in the Android or iPhone build to record with camera and microphone.";
+  }
+  if (!input.cameraReady || !input.hasCameraRef) {
+    return "Camera preview is not ready yet. Wait for Ready to react, then tap Start recording.";
+  }
+  return null;
+}
+
 export function clampOverlay(
   position: OverlayPosition,
   bounds: { width: number; height: number },

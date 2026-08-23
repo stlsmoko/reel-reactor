@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampOverlay, MAX_SOURCE_DURATION_MS, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
+import { clampOverlay, getRecordingStartBlocker, MAX_SOURCE_DURATION_MS, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
 
 describe("source video validation", () => {
   it("requires a local video URI", () => {
@@ -19,6 +19,17 @@ describe("source video validation", () => {
 describe("reaction overlay bounds", () => {
   it("keeps the overlay inside the studio control-safe area", () => {
     expect(clampOverlay({ x: -20, y: 999 }, { width: 390, height: 844 }, 132)).toEqual({ x: 16, y: 572 });
+  });
+});
+
+describe("recording start availability", () => {
+  it("explains that the browser preview cannot record rather than silently returning", () => {
+    expect(getRecordingStartBlocker({ platform: "web", cameraReady: true, hasCameraRef: true })).toContain("Browser preview cannot record");
+  });
+
+  it("allows native recording only after the camera preview is ready", () => {
+    expect(getRecordingStartBlocker({ platform: "android", cameraReady: false, hasCameraRef: false })).toContain("Camera preview is not ready");
+    expect(getRecordingStartBlocker({ platform: "android", cameraReady: true, hasCameraRef: true })).toBeNull();
   });
 });
 
