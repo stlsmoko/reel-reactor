@@ -24,18 +24,23 @@ import { setCurrentSharedLink, setCurrentSource } from "@/lib/reaction-session";
  */
 export default function HomeScreen() {
   const [isChoosing, setIsChoosing] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
 
   async function chooseVideo() {
     if (isChoosing) return;
+    setPickerError(null);
     setIsChoosing(true);
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const pickerOptions: ImagePicker.ImagePickerOptions = {
         mediaTypes: ["videos"],
         allowsMultipleSelection: false,
         videoMaxDuration: 180,
         quality: 1,
-        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-      });
+      };
+      if (Platform.OS === "ios") {
+        pickerOptions.preferredAssetRepresentationMode = ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (result.canceled) return;
 
       const asset = result.assets[0];
@@ -83,8 +88,10 @@ export default function HomeScreen() {
         height: asset.height,
       });
       router.push("/source-setup" as never);
-    } catch {
-      Alert.alert("Could not open your videos", "Please try selecting a video again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Please try selecting a video again.";
+      setPickerError(`Could not open your videos: ${message}`);
+      Alert.alert("Could not open your videos", message);
     } finally {
       setIsChoosing(false);
     }
@@ -137,6 +144,7 @@ export default function HomeScreen() {
           <MaterialIcons name="video-library" size={22} color="#FFFFFF" />
           <Text style={styles.primaryLabel}>{isChoosing ? "Opening videos…" : "Choose a video"}</Text>
         </Pressable>
+        {pickerError ? <Text accessibilityRole="alert" style={styles.pickerError}>{pickerError}</Text> : null}
         <Pressable onPress={pasteSharedLink} style={({ pressed }) => [styles.linkButton, pressed && styles.linkPressed]}>
           <MaterialIcons name="content-paste-go" size={20} color="#FF8A6B" />
           <Text style={styles.linkButtonLabel}>Paste copied post link</Text>
@@ -174,6 +182,7 @@ const styles = StyleSheet.create({
   primaryButton: { alignItems: "center", backgroundColor: "#FF5C35", borderRadius: 18, flexDirection: "row", gap: 10, height: 58, justifyContent: "center" },
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   primaryLabel: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  pickerError: { color: "#FFB4A3", fontSize: 12, lineHeight: 17, marginTop: 10, textAlign: "center" },
   infoRow: { alignItems: "center", flexDirection: "row", gap: 6, justifyContent: "center", marginTop: 13 },
   infoText: { color: "#8792A3", fontSize: 12 },
   notice: { alignItems: "flex-start", backgroundColor: "#121823", borderRadius: 14, flexDirection: "row", gap: 9, marginTop: 14, padding: 12 },

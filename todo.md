@@ -67,3 +67,6 @@
 - [x] Diagnose and repair the no-op source-video selection action reported in the preview.
 
 - [x] Diagnose and repair the no-op source-video selection action reported in the preview.
+
+- [ ] Surface web picker failures inline and restrict iOS-only picker options to iOS so source selection cannot appear to do nothing.
+- [x] Surface web picker failures inline and restrict iOS-only picker options to iOS so source selection cannot appear to do nothing.
