@@ -23,11 +23,8 @@ export function buildCompositeCommand(
 ) {
   const overlay = getOutputOverlay(request);
   const filter = [
-    `[0:v]scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease`,
-    `pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black`,
-    "setsar=1[background]",
-    `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase`,
-    `crop=${overlay.size}:${overlay.size},setsar=1[reaction]`,
+    `[0:v]scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[background]`,
+    `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1[reaction]`,
     `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1[video]`,
     "[0:a][1:a]amix=inputs=2:duration=shortest:dropout_transition=0[audio]",
   ].join(";");

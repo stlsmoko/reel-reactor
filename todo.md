@@ -98,3 +98,5 @@
 - [ ] Make the current mobile build automatically produce a verified combined reel-and-reaction video instead of any camera-only or screen-recording result.
 
 - [ ] Diagnose and fix the Android APK build failure that flashes near 60 percent in the project build interface.
+
+- [x] Fix the demonstrated FFmpeg `setsar` filter-chain error that prevents the mobile combined MP4 renderer from initializing.
