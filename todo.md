@@ -137,3 +137,4 @@
 - [x] Eliminate remaining review and studio player-overlap paths by pausing players on navigation focus changes and leaving exactly one intended playback owner.
 - [x] Make the control dock scroll independently of the movable camera overlay on small Android screens without gesture interception.
 - [x] Audit custom FFmpeg Android packaging and Gradle configuration for reproducible native dependency preparation before a new cloud build is requested.
+- [ ] Publish the held v1.0.12/code 13 source and release-gate audit to a private GitHub repository for independent Codex review.
