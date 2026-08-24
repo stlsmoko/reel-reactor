@@ -69,7 +69,19 @@ export default function HomeScreen() {
       const extension = asset.fileName?.match(/\.[a-z0-9]{2,5}$/i)?.[0] ?? ".mp4";
       const localUri = `${FileSystem.cacheDirectory}reel-reactor-source-${Date.now()}${extension}`;
       try {
-        await FileSystem.copyAsync({ from: asset.uri, to: localUri });
+        let readableSourceUri = asset.uri;
+        if (Platform.OS === "ios" && readableSourceUri.startsWith("ph://")) {
+          if (!asset.assetId) {
+            throw new Error("The photo library did not provide a readable video reference.");
+          }
+          const MediaLibrary = await import("expo-media-library");
+          const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.assetId, { shouldDownloadFromNetwork: true });
+          if (!assetInfo.localUri) {
+            throw new Error("The selected video is not available locally yet. Download it from iCloud, then choose it again.");
+          }
+          readableSourceUri = assetInfo.localUri;
+        }
+        await FileSystem.copyAsync({ from: readableSourceUri, to: localUri });
         const localInfo = await FileSystem.getInfoAsync(localUri);
         if (!localInfo.exists || !localInfo.size) {
           throw new Error("The selected clip was empty after copying.");

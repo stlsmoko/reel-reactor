@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlay, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
 
 describe("source video validation", () => {
   it("requires a local video URI", () => {
@@ -19,6 +19,12 @@ describe("source video validation", () => {
 describe("reaction overlay bounds", () => {
   it("keeps the overlay inside the studio control-safe area", () => {
     expect(clampOverlay({ x: -20, y: 999 }, { width: 390, height: 844 }, 132)).toEqual({ x: 16, y: 572 });
+  });
+
+  it("maps a contained landscape source and constrains the bubble to its visible video rectangle", () => {
+    const rect = getContainedVideoRect({ width: 390, height: 844 }, { width: 1920, height: 1080 });
+    expect(rect).toEqual({ x: 0, y: 312.3125, width: 390, height: 219.375 });
+    expect(clampOverlayToRect({ x: -20, y: 900 }, rect, 132)).toEqual({ x: 0, y: 399.6875 });
   });
 });
 

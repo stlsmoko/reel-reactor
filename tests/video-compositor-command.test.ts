@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCompositeCommand, getOutputOverlay } from "../lib/video-compositor-command";
+import { buildCompositeCommand, getOutputOverlay, normalizeSourcePauses } from "../lib/video-compositor-command";
 
 describe("composite command geometry", () => {
-  it("maps the portrait studio bubble to the 720 by 1280 export canvas", () => {
+  it("maps the bubble through the same contained-video rectangle used by the studio preview", () => {
     expect(getOutputOverlay({
       overlay: { x: 236, y: 126, size: 132 },
       studioSize: { width: 390, height: 844 },
-    })).toEqual({ x: 436, y: 191, size: 200 });
+      sourceSize: { width: 720, height: 1280 },
+    })).toEqual({ x: 436, y: 94, size: 244 });
+  });
+
+  it("retains only monotonic pause markers and merges repeated taps at one source frame", () => {
+    expect(normalizeSourcePauses([
+      { sourceTimeSec: 2, durationSec: 1 },
+      { sourceTimeSec: 2.04, durationSec: 2 },
+      { sourceTimeSec: 1, durationSec: 5 },
+      { sourceTimeSec: 4, durationSec: 0.01 },
+    ])).toEqual([{ sourceTimeSec: 2, durationSec: 3 }]);
   });
 });
 
@@ -31,13 +41,13 @@ describe("composite command", () => {
     expect(command.filter).toContain("[background][reaction]overlay=");
     expect(command.filter).toContain("[reaction_rgba][reaction_alpha]alphamerge[reaction]");
     expect(command.filter).toContain("[source_audio]volume=0.18[source_audio_scaled]");
-    expect(command.filter).toContain("[1:a]aresample=48000,volume=2.8[reaction_audio]");
-    expect(command.filter).toContain("amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[audio]");
+    expect(command.filter).toContain("[1:a]aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]");
+    expect(command.filter).toContain("amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]");
     expect(command.filter).toContain("pad=720:1280");
     expect(command.filter).toContain("[0:v]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[background]");
-    expect(command.filter).toContain("[1:v]scale=200:200:force_original_aspect_ratio=increase,crop=200:200,setsar=1,format=rgba[reaction_rgba]");
+    expect(command.filter).toContain("[1:v]scale=244:244:force_original_aspect_ratio=increase,crop=244:244,setsar=1,format=rgba[reaction_rgba]");
     expect(command.filter).not.toContain(";setsar=1");
-    expect(command.filter).toContain("overlay=37:121:eof_action=pass:repeatlast=1:format=auto[video]");
+    expect(command.filter).toContain("overlay=37:9:eof_action=pass:repeatlast=1:format=auto[video]");
     expect(command.args).not.toContain("-shortest");
   });
 

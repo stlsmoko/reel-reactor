@@ -127,3 +127,13 @@
 - [x] Use an independent code review to diagnose why recorded pause events are absent from the exported timeline.
 - [x] Repair the exported audio path so the front-camera microphone reaction is clearly audible over the source track.
 - [ ] Validate v1.0.11 on the phone: a pause marker shows a source freeze in export and reaction speech is clearly audible over reduced source audio.
+
+- [x] Hold the v1.0.11 APK build until a consolidated audit covers all recurring mobile output, controls, review, and packaging failures.
+- [x] Produce a single remaining-issues checklist that distinguishes device-proven fixes from unverified code paths before the next release candidate.
+- [x] Normalize every selected source and recorded reaction URI to a verified local compositor-readable file, including iOS photo-library assets.
+- [x] Map the movable reaction overlay against the actual contained source-video rectangle so exported position and size match the studio preview for landscape and portrait clips.
+- [x] Harden pause marker capture and source-timeline construction against stale player readings, duplicate markers, and non-monotonic timing.
+- [x] Add a tested safe reaction-audio fallback and dynamics guard so exports do not fail or clip when a camera recording lacks an audio track or has uneven loudness.
+- [x] Eliminate remaining review and studio player-overlap paths by pausing players on navigation focus changes and leaving exactly one intended playback owner.
+- [x] Make the control dock scroll independently of the movable camera overlay on small Android screens without gesture interception.
+- [x] Audit custom FFmpeg Android packaging and Gradle configuration for reproducible native dependency preparation before a new cloud build is requested.

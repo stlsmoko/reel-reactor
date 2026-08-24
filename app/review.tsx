@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { useCallback } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -14,6 +15,16 @@ export default function ReviewScreen() {
     videoPlayer.loop = false;
     videoPlayer.muted = false;
   });
+
+  useFocusEffect(useCallback(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch {
+        // The hook owns disposal; this prevents a stale review player from retaining audio focus.
+      }
+    };
+  }, [player]));
 
   if (!takeUri || !take?.isComposite) {
     router.replace("/");
@@ -52,7 +63,7 @@ export default function ReviewScreen() {
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5" containerClassName="bg-[#0C1018]">
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace("/")} hitSlop={12} style={styles.closeButton}>
+        <Pressable onPress={() => { player.pause(); router.replace("/"); }} hitSlop={12} style={styles.closeButton}>
           <MaterialIcons name="close" size={22} color="#F7F8FA" />
         </Pressable>
         <Text style={styles.headerTitle}>Reaction video</Text>
@@ -77,7 +88,7 @@ export default function ReviewScreen() {
         <MaterialIcons name="ios-share" size={21} color="#FF8A6B" />
         <Text style={styles.secondaryLabel}>Share reaction video</Text>
       </Pressable>
-      <Pressable onPress={() => router.replace("/reaction-record" as never)} style={styles.rerecordButton}>
+      <Pressable onPress={() => { player.pause(); router.replace("/reaction-record" as never); }} style={styles.rerecordButton}>
         <Text style={styles.rerecordLabel}>Record again</Text>
       </Pressable>
     </ScreenContainer>

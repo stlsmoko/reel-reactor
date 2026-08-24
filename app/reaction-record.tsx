@@ -2,13 +2,13 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useEvent } from "expo";
 import { setAudioModeAsync } from "expo-audio";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
-import { router } from "expo-router";
+import { router, useIsFocused } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, LayoutChangeEvent, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { beginReactionCameraRecording, clampOverlay, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
 import { getCurrentSource, setCurrentReaction } from "@/lib/reaction-session";
 import { composeReactionVideo } from "@/lib/video-compositor";
 
@@ -26,12 +26,13 @@ function getTouchDistance(touches: { pageX: number; pageY: number }[]) {
 export default function ReactionRecordScreen() {
   const source = getCurrentSource();
   const isBrowserPreview = Platform.OS === "web";
+  const isFocused = useIsFocused();
   const cameraRef = useRef<CameraView>(null);
   const { height, width } = useWindowDimensions();
   const player = useVideoPlayer(source?.uri ?? null, (videoPlayer) => {
     videoPlayer.loop = false;
-    videoPlayer.audioMixingMode = "auto";
-    videoPlayer.volume = 0.52;
+    videoPlayer.audioMixingMode = "mixWithOthers";
+    videoPlayer.volume = 0.7;
     videoPlayer.timeUpdateEventInterval = 0.1;
   });
   const timeUpdate = useEvent(player, "timeUpdate", {
@@ -55,8 +56,9 @@ export default function ReactionRecordScreen() {
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const [overlayGestureStatus, setOverlayGestureStatus] = useState("Drag to move • pinch to resize");
   const [overlayStyle, setOverlayStyle] = useState<OverlayStyle>("circle");
+  const [studioSize, setStudioSize] = useState({ width, height });
   const [isSourcePaused, setIsSourcePaused] = useState(false);
-  const [sourcePauses, setSourcePauses] = useState<SourcePause[]>([]);
+  const [, setSourcePauses] = useState<SourcePause[]>([]);
   const recordAttempt = useRef(0);
   const dragStart = useRef<OverlayPosition>(overlayPosition);
   const overlayPositionRef = useRef<OverlayPosition>(overlayPosition);
@@ -66,6 +68,16 @@ export default function ReactionRecordScreen() {
   const isPinching = useRef(false);
   const sourcePauseStart = useRef<{ sourceTimeSec: number; wallTimeMs: number } | null>(null);
   const sourceTimeRef = useRef(0);
+  const sourcePausesRef = useRef<SourcePause[]>([]);
+  const dockHeight = Math.max(230, Math.min(studioSize.height * 0.52, 470));
+  const sourceVideoRect = useMemo(
+    () => getContainedVideoRect(studioSize, { width: source?.width, height: source?.height }),
+    [source?.height, source?.width, studioSize],
+  );
+  const overlayRect = useMemo(() => ({
+    ...sourceVideoRect,
+    height: Math.max(0, Math.min(sourceVideoRect.height, studioSize.height - dockHeight - sourceVideoRect.y - 12)),
+  }), [dockHeight, sourceVideoRect, studioSize.height]);
 
   useEffect(() => {
     if (Number.isFinite(observedSourceTime) && observedSourceTime >= 0) {
@@ -81,7 +93,7 @@ export default function ReactionRecordScreen() {
     if (Platform.OS === "web") return;
     setAudioModeAsync({
       allowsRecording: true,
-      interruptionMode: "doNotMix",
+      interruptionMode: "mixWithOthers",
       playsInSilentMode: true,
       shouldRouteThroughEarpiece: false,
     }).catch(() => undefined);
@@ -139,6 +151,10 @@ export default function ReactionRecordScreen() {
     overlaySizeRef.current = overlaySize;
   }, [overlaySize]);
 
+  useEffect(() => {
+    setOverlayPosition((current) => clampOverlayToRect(current, overlayRect, overlaySizeRef.current));
+  }, [overlayRect]);
+
   // React Native invokes these responder callbacks after a touch event, never during render.
   // eslint-disable-next-line react-hooks/refs
   const overlayResponder = useMemo(() => PanResponder.create({
@@ -172,13 +188,13 @@ export default function ReactionRecordScreen() {
         const nextSize = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, Math.round(pinchStartSize.current * (touchDistance / baseline))));
         overlaySizeRef.current = nextSize;
         setOverlaySize(nextSize);
-        setOverlayPosition((current) => clampOverlay(current, { width, height }, nextSize));
+        setOverlayPosition((current) => clampOverlayToRect(current, overlayRect, nextSize));
         setOverlayGestureStatus("Resizing camera bubble");
         return;
       }
 
       if (isPinching.current) return;
-      setOverlayPosition(clampOverlay({ x: dragStart.current.x + gestureState.dx, y: dragStart.current.y + gestureState.dy }, { width, height }, overlaySizeRef.current));
+      setOverlayPosition(clampOverlayToRect({ x: dragStart.current.x + gestureState.dx, y: dragStart.current.y + gestureState.dy }, overlayRect, overlaySizeRef.current));
       setOverlayGestureStatus("Moving camera bubble");
     },
     onPanResponderRelease: () => {
@@ -190,7 +206,7 @@ export default function ReactionRecordScreen() {
       setOverlayGestureStatus("Camera bubble updated");
     },
     onPanResponderTerminationRequest: () => false,
-  }), [height, isCompositing, isRecording, width]);
+  }), [isCompositing, isRecording, overlayRect]);
 
   async function ensurePermissions() {
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -214,10 +230,11 @@ export default function ReactionRecordScreen() {
 
   function closeOpenSourcePause() {
     const activePause = sourcePauseStart.current;
-    if (!activePause) return sourcePauses;
+    if (!activePause) return sourcePausesRef.current;
     const durationSec = Math.max(0, (Date.now() - activePause.wallTimeMs) / 1_000);
-    const completed = [...sourcePauses, { sourceTimeSec: activePause.sourceTimeSec, durationSec }];
+    const completed = [...sourcePausesRef.current, { sourceTimeSec: activePause.sourceTimeSec, durationSec }];
     sourcePauseStart.current = null;
+    sourcePausesRef.current = completed;
     setSourcePauses(completed);
     setIsSourcePaused(false);
     return completed;
@@ -231,7 +248,7 @@ export default function ReactionRecordScreen() {
       setRecordingStatus("Reel resumed while your reaction recording continues.");
       return;
     }
-    const stableSourceTime = Math.max(0, sourceTimeRef.current, player.currentTime);
+    const stableSourceTime = Math.max(0, sourceTimeRef.current);
     player.pause();
     sourcePauseStart.current = { sourceTimeSec: stableSourceTime, wallTimeMs: Date.now() };
     setIsSourcePaused(true);
@@ -281,6 +298,7 @@ export default function ReactionRecordScreen() {
       return;
     }
 
+    sourcePausesRef.current = [];
     setSourcePauses([]);
     sourcePauseStart.current = null;
     setIsSourcePaused(false);
@@ -308,7 +326,8 @@ export default function ReactionRecordScreen() {
           sourceUri: source!.uri,
           reactionUri: recorded.uri,
           overlay: { ...overlayPosition, size: overlaySize },
-          studioSize: { width, height },
+          studioSize,
+          sourceSize: { width: source?.width, height: source?.height },
           overlayStyle,
           sourcePauses: completedSourcePauses,
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
@@ -334,7 +353,10 @@ export default function ReactionRecordScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} containerClassName="bg-black" safeAreaClassName="bg-black">
-      <View style={styles.canvas}>
+      <View onLayout={(event: LayoutChangeEvent) => {
+        const { width: nextWidth, height: nextHeight } = event.nativeEvent.layout;
+        if (nextWidth > 0 && nextHeight > 0) setStudioSize({ width: nextWidth, height: nextHeight });
+      }} style={styles.canvas}>
         <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="contain" nativeControls={false} surfaceType="textureView" />
         <View style={styles.scrim} pointerEvents="none" />
 
@@ -357,7 +379,7 @@ export default function ReactionRecordScreen() {
         </View> : null}
 
         <View collapsable={false} pointerEvents="box-only" {...overlayResponder.panHandlers} style={[styles.reactionOverlay, { borderRadius: overlayStyle === "circle" ? overlaySize / 2 : 18, height: overlaySize, left: overlayPosition.x, top: overlayPosition.y, width: overlaySize }]}>
-            {cameraPermission?.granted ? (
+            {isFocused && cameraPermission?.granted ? (
               <>
                 <CameraView
                   key={cameraInstanceKey}
@@ -366,6 +388,7 @@ export default function ReactionRecordScreen() {
                   pointerEvents="none"
                   facing={facing}
                   mode="video"
+                  mute={false}
                 onCameraReady={() => {
                   setIsCameraReady(true);
                   setCameraStatus("ready");
@@ -395,7 +418,7 @@ export default function ReactionRecordScreen() {
             </View> : null}
         </View>
 
-        {!isCleanScene ? <View style={[styles.bottomDock, { height: Math.max(230, Math.min(height * 0.52, 470)) }]}>
+        {!isCleanScene ? <View style={[styles.bottomDock, { height: dockHeight }]}>
           <ScrollView style={styles.controlScroll} contentContainerStyle={styles.controlScrollContent} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
             {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
@@ -429,7 +452,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.11"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.12"}</Text>
           </ScrollView>
         </View> : null}
 

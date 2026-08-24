@@ -7,6 +7,7 @@ export type CompositeRequest = {
   reactionUri: string;
   overlay: { x: number; y: number; size: number };
   studioSize: { width: number; height: number };
+  sourceSize?: { width?: number; height?: number };
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   onProgress?: (processedMs: number) => void;
@@ -33,6 +34,9 @@ async function ensureReadableMedia(label: string, uri: string) {
   }
 
   let localUri = uri;
+  if (uri.startsWith("ph://")) {
+    throw new Error(`${label} video is still a photo-library reference. Choose the video again so Reel Reactor can prepare a local copy before rendering.`);
+  }
   if (uri.startsWith("content://")) {
     localUri = `${getCacheDirectory()}reel-reactor-${label.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}${safeExtension(uri)}`;
     try {
@@ -67,6 +71,12 @@ export async function composeReactionVideo(request: CompositeRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown native module error";
     throw new Error(`The video engine could not load on this device: ${message}`);
+  }
+
+  try {
+    await ffmpeg.execute(["-v", "error", "-i", reactionPath, "-map", "0:a:0", "-f", "null", "-"], { logLevel: "error" });
+  } catch {
+    throw new Error("The recorded camera video contains no microphone audio, so Reel Reactor stopped before creating a misleading silent reaction export. Re-record after confirming microphone permission.");
   }
 
   try {

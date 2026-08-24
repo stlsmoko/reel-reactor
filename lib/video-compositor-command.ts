@@ -1,6 +1,7 @@
 export type CompositeGeometry = {
   overlay: { x: number; y: number; size: number };
   studioSize: { width: number; height: number };
+  sourceSize?: { width?: number; height?: number };
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
 };
@@ -16,10 +17,39 @@ function backgroundChain(input: string, output: string) {
   return `${input}scale=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:force_original_aspect_ratio=decrease,pad=${OUTPUT_WIDTH}:${OUTPUT_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1${output}`;
 }
 
+function getContainedRect(
+  container: { width: number; height: number },
+  sourceSize: { width?: number; height?: number } = {},
+) {
+  const sourceWidth = sourceSize.width && sourceSize.width > 0 ? sourceSize.width : OUTPUT_WIDTH;
+  const sourceHeight = sourceSize.height && sourceSize.height > 0 ? sourceSize.height : OUTPUT_HEIGHT;
+  const scale = Math.min(container.width / sourceWidth, container.height / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  return { x: (container.width - width) / 2, y: (container.height - height) / 2, width, height };
+}
+
+export function normalizeSourcePauses(pauses: CompositeGeometry["sourcePauses"] = []) {
+  const normalized: { sourceTimeSec: number; durationSec: number }[] = [];
+  for (const pause of pauses) {
+    if (!Number.isFinite(pause.sourceTimeSec) || !Number.isFinite(pause.durationSec) || pause.sourceTimeSec < 0 || pause.durationSec <= 0.05) {
+      continue;
+    }
+    const last = normalized.at(-1);
+    if (last && pause.sourceTimeSec < last.sourceTimeSec - 0.08) {
+      continue;
+    }
+    if (last && Math.abs(pause.sourceTimeSec - last.sourceTimeSec) <= 0.08) {
+      last.durationSec += pause.durationSec;
+      continue;
+    }
+    normalized.push({ sourceTimeSec: pause.sourceTimeSec, durationSec: pause.durationSec });
+  }
+  return normalized;
+}
+
 function buildSourceTimelineFilters(pauses: CompositeGeometry["sourcePauses"] = []) {
-  const validPauses = pauses
-    .filter((pause) => pause.durationSec > 0.05 && pause.sourceTimeSec >= 0)
-    .sort((left, right) => left.sourceTimeSec - right.sourceTimeSec);
+  const validPauses = normalizeSourcePauses(pauses);
 
   if (validPauses.length === 0) {
     return [
@@ -64,15 +94,15 @@ function buildSourceTimelineFilters(pauses: CompositeGeometry["sourcePauses"] = 
   return filters;
 }
 
-export function getOutputOverlay({ overlay, studioSize }: CompositeGeometry) {
-  const scaleX = OUTPUT_WIDTH / studioSize.width;
-  const scaleY = OUTPUT_HEIGHT / studioSize.height;
-  const sizeScale = Math.min(scaleX, scaleY);
+export function getOutputOverlay({ overlay, studioSize, sourceSize }: CompositeGeometry) {
+  const studioVideo = getContainedRect(studioSize, sourceSize);
+  const outputVideo = getContainedRect({ width: OUTPUT_WIDTH, height: OUTPUT_HEIGHT }, sourceSize);
+  const scale = outputVideo.width / studioVideo.width;
 
   return {
-    x: Math.max(0, Math.round(overlay.x * scaleX)),
-    y: Math.max(0, Math.round(overlay.y * scaleY)),
-    size: Math.max(80, Math.round(overlay.size * sizeScale)),
+    x: Math.max(0, Math.round(outputVideo.x + (overlay.x - studioVideo.x) * scale)),
+    y: Math.max(0, Math.round(outputVideo.y + (overlay.y - studioVideo.y) * scale)),
+    size: Math.max(80, Math.round(overlay.size * scale)),
   };
 }
 
@@ -96,8 +126,8 @@ export function buildCompositeCommand(
     ...reactionFilters,
     `[background][reaction]overlay=${overlay.x}:${overlay.y}:eof_action=pass:repeatlast=1:format=auto[video]`,
     "[source_audio]volume=0.18[source_audio_scaled]",
-    "[1:a]aresample=48000,volume=2.8[reaction_audio]",
-    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[audio]",
+    "[1:a]aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]",
+    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]",
   ].join(";");
 
   return {
