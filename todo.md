@@ -112,3 +112,8 @@
 - [x] Remove the device-observed duplicate source playback/audio during final review playback.
 - [x] Ensure the selected Bubble, Square, or Green key style reaches the native renderer request and render command.
 - [ ] Validate v1.0.8 on a physical phone: review has one playback/audio track, Bubble is round, and Green key removes a real green backdrop.
+
+- [ ] Complete and report a pre-download v1.0.8 audit of review isolation, audio routing, overlay styles, renderer command, tests, and Android prebuild.
+
+- [ ] Diagnose the current APK build/download failure and identify the version actually installed on the owner’s phone.
+- [ ] Prove with an inspectable native render that Bubble, Square, and Green key style selections change the final exported MP4 before another owner test.
