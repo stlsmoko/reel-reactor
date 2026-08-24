@@ -117,3 +117,9 @@
 
 - [ ] Diagnose the current APK build/download failure and identify the version actually installed on the owner’s phone.
 - [ ] Prove with an inspectable native render that Bubble, Square, and Green key style selections change the final exported MP4 before another owner test.
+
+- [x] Make the current reaction studio genuinely scrollable by using a bounded scroll region above the bottom system area.
+- [x] Restore audible source playback during reaction recording at a lower monitoring volume.
+- [x] Rebalance final audio to favor the front-camera microphone while retaining reduced source audio.
+- [x] Repair the Green key command and clarify that it requires an evenly lit real green backdrop.
+- [ ] Validate v1.0.10 on the phone: controls scroll, reel audio is audible while recording, reaction speech is intelligible in export, and Green key removes a real green backdrop.

@@ -89,15 +89,15 @@ export function buildCompositeCommand(
         "[reaction_rgba][reaction_alpha]alphamerge[reaction]",
       ]
     : overlayStyle === "green-screen"
-      ? [`${reactionBase},format=rgba,chromakey=0x00FF00:0.18:0.08[reaction]`]
+      ? [`${reactionBase},format=rgba,chromakey=0x00FF00:0.32:0.12[reaction]`]
       : [`${reactionBase}[reaction]`];
   const filter = [
     ...buildSourceTimelineFilters(request.sourcePauses),
     ...reactionFilters,
     `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1:format=auto[video]`,
-    "[source_audio]volume=0.85[source_audio_scaled]",
-    "[1:a]aresample=48000,volume=1.0[reaction_audio]",
-    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=1[audio]",
+    "[source_audio]volume=0.38[source_audio_scaled]",
+    "[1:a]aresample=48000,volume=1.35[reaction_audio]",
+    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[audio]",
   ].join(";");
 
   return {

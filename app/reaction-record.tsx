@@ -30,6 +30,7 @@ export default function ReactionRecordScreen() {
   const player = useVideoPlayer(source?.uri ?? null, (videoPlayer) => {
     videoPlayer.loop = false;
     videoPlayer.audioMixingMode = "auto";
+    videoPlayer.volume = 0.52;
   });
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
@@ -66,7 +67,7 @@ export default function ReactionRecordScreen() {
       allowsRecording: true,
       interruptionMode: "doNotMix",
       playsInSilentMode: true,
-      shouldRouteThroughEarpiece: true,
+      shouldRouteThroughEarpiece: false,
     }).catch(() => undefined);
     return () => {
       try {
@@ -376,8 +377,8 @@ export default function ReactionRecordScreen() {
             </View> : null}
         </View>
 
-        {!isCleanScene ? <View style={[styles.bottomDock, { maxHeight: Math.max(260, Math.min(height * 0.48, 440)) }]}>
-          <ScrollView contentContainerStyle={styles.controlScrollContent} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
+        {!isCleanScene ? <View style={[styles.bottomDock, { height: Math.max(230, Math.min(height * 0.52, 470)) }]}>
+          <ScrollView style={styles.controlScroll} contentContainerStyle={styles.controlScrollContent} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
             {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
               <MaterialIcons name={isSourcePaused ? "play-arrow" : "pause"} size={22} color="#FFFFFF" />
@@ -390,7 +391,7 @@ export default function ReactionRecordScreen() {
                   <Text style={[styles.styleButtonLabel, overlayStyle === style && styles.styleButtonLabelSelected]}>{style === "circle" ? "Bubble" : style === "square" ? "Square" : "Green key"}</Text>
                 </Pressable>)}
               </View>
-              {overlayStyle === "green-screen" ? <Text style={styles.greenScreenHint}>Use a bright green background behind you. The export removes that green, leaving only you over the reel.</Text> : null}
+              {overlayStyle === "green-screen" ? <Text style={styles.greenScreenHint}>Use an evenly lit, bright green background behind you. The export keys that green out; ordinary rooms cannot be removed by this mode.</Text> : null}
             </View> : null}
             <Pressable
               disabled={isCompositing}
@@ -410,7 +411,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.9"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.10"}</Text>
           </ScrollView>
         </View> : null}
 
@@ -439,8 +440,9 @@ const styles = StyleSheet.create({
   cameraRetryPressed: { opacity: 0.72 },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  bottomDock: { bottom: 0, elevation: 30, left: 0, position: "absolute", right: 0, zIndex: 30 },
-  controlScrollContent: { alignItems: "center", paddingBottom: 14, paddingHorizontal: 22, paddingTop: 8 },
+  bottomDock: { backgroundColor: "rgba(5,8,13,0.9)", borderTopColor: "rgba(255,255,255,0.14)", borderTopWidth: 1, bottom: 0, elevation: 30, left: 0, position: "absolute", right: 0, zIndex: 30 },
+  controlScroll: { flex: 1, width: "100%" },
+  controlScrollContent: { alignItems: "center", paddingBottom: 26, paddingHorizontal: 22, paddingTop: 12 },
   instruction: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginBottom: 13, textAlign: "center", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 5 },
   startRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.95)", borderRadius: 18, borderWidth: 2, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
