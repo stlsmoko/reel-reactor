@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useEvent } from "expo";
 import { setAudioModeAsync } from "expo-audio";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { router } from "expo-router";
@@ -31,7 +32,15 @@ export default function ReactionRecordScreen() {
     videoPlayer.loop = false;
     videoPlayer.audioMixingMode = "auto";
     videoPlayer.volume = 0.52;
+    videoPlayer.timeUpdateEventInterval = 0.1;
   });
+  const timeUpdate = useEvent(player, "timeUpdate", {
+    currentTime: 0,
+    currentLiveTimestamp: null,
+    currentOffsetFromLive: null,
+    bufferedPosition: 0,
+  });
+  const observedSourceTime = timeUpdate?.currentTime ?? 0;
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [facing, setFacing] = useState<"front" | "back">("front");
@@ -56,6 +65,13 @@ export default function ReactionRecordScreen() {
   const pinchStartDistance = useRef(0);
   const isPinching = useRef(false);
   const sourcePauseStart = useRef<{ sourceTimeSec: number; wallTimeMs: number } | null>(null);
+  const sourceTimeRef = useRef(0);
+
+  useEffect(() => {
+    if (Number.isFinite(observedSourceTime) && observedSourceTime >= 0) {
+      sourceTimeRef.current = observedSourceTime;
+    }
+  }, [observedSourceTime]);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -215,10 +231,11 @@ export default function ReactionRecordScreen() {
       setRecordingStatus("Reel resumed while your reaction recording continues.");
       return;
     }
+    const stableSourceTime = Math.max(0, sourceTimeRef.current, player.currentTime);
     player.pause();
-    sourcePauseStart.current = { sourceTimeSec: player.currentTime, wallTimeMs: Date.now() };
+    sourcePauseStart.current = { sourceTimeSec: stableSourceTime, wallTimeMs: Date.now() };
     setIsSourcePaused(true);
-    setRecordingStatus("Reel paused. Your camera and microphone are still recording so you can talk over this moment.");
+    setRecordingStatus(`Reel paused at ${stableSourceTime.toFixed(1)}s. Your camera and microphone are still recording so you can talk over this moment.`);
   }
 
   async function toggleRecording() {
@@ -274,8 +291,9 @@ export default function ReactionRecordScreen() {
       const recorded = await beginReactionCameraRecording({
         startCameraRecording: () => camera.recordAsync(),
         startSourcePlayback: async () => {
-          await player.replay();
-          await player.play();
+          player.currentTime = 0;
+          sourceTimeRef.current = 0;
+          player.play();
         },
         onSourcePlaybackIssue: () => {
           setRecordingStatus("Your reaction camera is recording, but the source preview could not start. You can still tap Stop recording.");
@@ -411,7 +429,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.10"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.11"}</Text>
           </ScrollView>
         </View> : null}
 

@@ -123,3 +123,7 @@
 - [x] Rebalance final audio to favor the front-camera microphone while retaining reduced source audio.
 - [x] Repair the Green key command and clarify that it requires an evenly lit real green backdrop.
 - [ ] Validate v1.0.10 on the phone: controls scroll, reel audio is audible while recording, reaction speech is intelligible in export, and Green key removes a real green backdrop.
+
+- [x] Use an independent code review to diagnose why recorded pause events are absent from the exported timeline.
+- [x] Repair the exported audio path so the front-camera microphone reaction is clearly audible over the source track.
+- [ ] Validate v1.0.11 on the phone: a pause marker shows a source freeze in export and reaction speech is clearly audible over reduced source audio.

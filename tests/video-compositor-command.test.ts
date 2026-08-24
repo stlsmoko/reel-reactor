@@ -30,13 +30,15 @@ describe("composite command", () => {
     ]));
     expect(command.filter).toContain("[background][reaction]overlay=");
     expect(command.filter).toContain("[reaction_rgba][reaction_alpha]alphamerge[reaction]");
-    expect(command.filter).toContain("[source_audio]volume=0.38[source_audio_scaled]");
-    expect(command.filter).toContain("[1:a]aresample=48000,volume=1.35[reaction_audio]");
+    expect(command.filter).toContain("[source_audio]volume=0.18[source_audio_scaled]");
+    expect(command.filter).toContain("[1:a]aresample=48000,volume=2.8[reaction_audio]");
     expect(command.filter).toContain("amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[audio]");
     expect(command.filter).toContain("pad=720:1280");
     expect(command.filter).toContain("[0:v]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[background]");
     expect(command.filter).toContain("[1:v]scale=200:200:force_original_aspect_ratio=increase,crop=200:200,setsar=1,format=rgba[reaction_rgba]");
     expect(command.filter).not.toContain(";setsar=1");
+    expect(command.filter).toContain("overlay=37:121:eof_action=pass:repeatlast=1:format=auto[video]");
+    expect(command.args).not.toContain("-shortest");
   });
 
   it("can render a square or a green-screen keyed reaction layer without the circular alpha mask", () => {

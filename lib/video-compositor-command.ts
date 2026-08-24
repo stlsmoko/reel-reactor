@@ -94,9 +94,9 @@ export function buildCompositeCommand(
   const filter = [
     ...buildSourceTimelineFilters(request.sourcePauses),
     ...reactionFilters,
-    `[background][reaction]overlay=${overlay.x}:${overlay.y}:shortest=1:format=auto[video]`,
-    "[source_audio]volume=0.38[source_audio_scaled]",
-    "[1:a]aresample=48000,volume=1.35[reaction_audio]",
+    `[background][reaction]overlay=${overlay.x}:${overlay.y}:eof_action=pass:repeatlast=1:format=auto[video]`,
+    "[source_audio]volume=0.18[source_audio_scaled]",
+    "[1:a]aresample=48000,volume=2.8[reaction_audio]",
     "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[audio]",
   ].join(";");
 
@@ -113,7 +113,6 @@ export function buildCompositeCommand(
       "-q:v", "4",
       "-pix_fmt", "yuv420p",
       "-c:a", "aac",
-      "-shortest",
       request.outputPath,
     ],
   };
