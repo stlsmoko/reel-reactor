@@ -140,3 +140,4 @@
 - [x] Publish the held v1.0.12/code 13 source and release-gate audit to a private GitHub repository for independent Codex review.
 - [x] Synchronize Claude's updated GitHub revision and independently verify its claimed mobile-composition repairs before any APK is described as working; the GitHub update adds only a standalone browser `index.html`, not Expo or Android source changes.
 - [x] Port Claude's browser-flow interaction concepts into the real Expo Router Android studio while preserving native camera recording and FFmpeg MP4 composition.
+- [ ] Add and run a private GitHub Actions Android APK build so the owner can proceed without the blocked hosted Expo build quota.
