@@ -25,23 +25,25 @@ const bundleId =
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
+const isSideBySideDebugBuild = process.env.REEL_REACTOR_SIDE_BY_SIDE === "1";
+const androidPackage = isSideBySideDebugBuild ? `${bundleId}.test` : bundleId;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "Reel Reactor",
+  appName: isSideBySideDebugBuild ? "Reel Reactor Test" : "Reel Reactor",
   appSlug: "reel-reactor",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
   logoUrl: "/manus-storage/reel-reactor-icon_4113e11e.png",
-  scheme: schemeFromBundleId,
+  scheme: isSideBySideDebugBuild ? `${schemeFromBundleId}test` : schemeFromBundleId,
   iosBundleId: bundleId,
-  androidPackage: bundleId,
+  androidPackage,
 };
 
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.13",
+  version: "1.0.14",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -62,7 +64,7 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    versionCode: 14,
+    versionCode: 15,
     permissions: ["POST_NOTIFICATIONS"],
     intentFilters: [
       {

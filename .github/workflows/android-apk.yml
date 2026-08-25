@@ -13,6 +13,7 @@ jobs:
     env:
       CI: "1"
       EXPO_NO_TELEMETRY: "1"
+      REEL_REACTOR_SIDE_BY_SIDE: "1"
       GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
     steps:
       - name: Check out source
@@ -55,7 +56,7 @@ jobs:
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: reel-reactor-v1.0.13-code-14-debug-apk
+          name: reel-reactor-test-v1.0.14-code-15-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

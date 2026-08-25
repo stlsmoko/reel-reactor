@@ -141,3 +141,6 @@
 - [x] Synchronize Claude's updated GitHub revision and independently verify its claimed mobile-composition repairs before any APK is described as working; the GitHub update adds only a standalone browser `index.html`, not Expo or Android source changes.
 - [x] Port Claude's browser-flow interaction concepts into the real Expo Router Android studio while preserving native camera recording and FFmpeg MP4 composition.
 - [x] Add and run a private GitHub Actions Android APK build so the owner can proceed without the blocked hosted Expo build quota.
+- [ ] Repair the device-observed review page so its Save and Share controls scroll above the Android navigation area on a 9:16 phone.
+- [ ] Provide a coherent APK installation path when a GitHub debug build is blocked by the existing Expo-signed Reel Reactor package.
+- [x] Inspect a real owner-device combined output: source video and reaction bubble reach the review screen in one rendered video; final output audio, pause, Green key, and scrolling remain separately unverified.
