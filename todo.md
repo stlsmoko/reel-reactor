@@ -40,7 +40,7 @@
 - [x] Implement the on-device source scaling, positioned overlay, audio-mixing, composite MP4 review, save, and share flow.
 - [x] Verify the prebuild configuration includes the compositor plugin plus Android camera and microphone permissions.
 - [ ] Complete a standalone Android APK build and confirm a physical device renders the combined MP4 end to end.
-- [ ] Complete cloud or local APK compilation: the Android SDK is installed, but this sandbox terminates Gradle before task configuration; native prebuild and direct NDK compilation of the compositor now succeed.
+- [x] Complete cloud or local APK compilation: the Android SDK is installed, but this sandbox terminates Gradle before task configuration; native prebuild and direct NDK compilation of the compositor now succeed. A GitHub-hosted runner built and archived the v1.0.13/code 14 debug APK successfully.
 - [x] Diagnose the camera-only review ambiguity and add explicit merged-render status plus a version bump so the next APK is distinguishable.
 - [x] Add concurrent native two-finger pinch resizing and one-finger drag movement for the floating reaction camera.
 - [ ] Confirm physical Android rendering opens only a combined reaction video review or shows a specific native merged-render error.
@@ -59,7 +59,7 @@
 - [x] Compile the vendored arm64 FFmpeg JNI bridge directly with the Android NDK and verify the required overlay, crop, pad, scale, setsar, and amix filters are enabled.
 - [x] Diagnose the owner-reported v1.0.3 Android regression from code and build artifacts before requesting another phone test.
 - [x] Remove any unverified native dependency or interaction-layer change that can prevent the recorder from opening or responding on the owner’s Android phone.
-- [ ] Do not ask for another publish or device test until the standalone APK path itself has been compiled and inspected.
+- [x] Do not ask for another publish or device test until the standalone APK path itself has been compiled and inspected.
 - [x] Prevent the review screen from importing Android-only media-library code in the web bundle, which currently produces a server error during preview loading.
 
 - [ ] Checkpoint the web-safe source selection and persistent preview startup repairs before restarting the managed development service.
@@ -77,7 +77,7 @@
 
 - [ ] Diagnose and repair the native Android reaction camera record invocation that fails to start a recording.
 
-- [ ] Produce and inspect a custom Android development or standalone build because Expo Go cannot load the required ffmpeg-expo native module.
+- [x] Produce and inspect a custom Android development or standalone build because Expo Go cannot load the required ffmpeg-expo native module.
 
 - [ ] Diagnose and repair the owner-reported phone-side recording failure where tapping record does not produce a reaction video.
 
@@ -140,4 +140,4 @@
 - [x] Publish the held v1.0.12/code 13 source and release-gate audit to a private GitHub repository for independent Codex review.
 - [x] Synchronize Claude's updated GitHub revision and independently verify its claimed mobile-composition repairs before any APK is described as working; the GitHub update adds only a standalone browser `index.html`, not Expo or Android source changes.
 - [x] Port Claude's browser-flow interaction concepts into the real Expo Router Android studio while preserving native camera recording and FFmpeg MP4 composition.
-- [ ] Add and run a private GitHub Actions Android APK build so the owner can proceed without the blocked hosted Expo build quota.
+- [x] Add and run a private GitHub Actions Android APK build so the owner can proceed without the blocked hosted Expo build quota.
