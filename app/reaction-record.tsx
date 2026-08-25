@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useEvent } from "expo";
+import { useEvent, useEventListener } from "expo";
 import { setAudioModeAsync } from "expo-audio";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { router, useIsFocused } from "expo-router";
@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, LayoutChangeEvent, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { beginReactionCameraRecording, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, shouldStopReactionForSourceEnd, type OverlayPosition } from "@/lib/reaction-project";
 import { getCurrentSource, setCurrentReaction } from "@/lib/reaction-session";
 import { composeReactionVideo } from "@/lib/video-compositor";
 
@@ -21,6 +21,12 @@ function getTouchDistance(touches: { pageX: number; pageY: number }[]) {
   if (touches.length < 2) return 0;
   const [first, second] = touches;
   return Math.hypot(second.pageX - first.pageX, second.pageY - first.pageY);
+}
+
+function formatRecordingTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 export default function ReactionRecordScreen() {
@@ -50,6 +56,7 @@ export default function ReactionRecordScreen() {
   const [cameraInstanceKey, setCameraInstanceKey] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isCompositing, setIsCompositing] = useState(false);
+  const [recordingElapsedSeconds, setRecordingElapsedSeconds] = useState(0);
   const [recordingStatus, setRecordingStatus] = useState("Preparing camera and microphone…");
   const [isCleanScene] = useState(false);
   const [overlaySize, setOverlaySize] = useState(132);
@@ -69,6 +76,9 @@ export default function ReactionRecordScreen() {
   const sourcePauseStart = useRef<{ sourceTimeSec: number; wallTimeMs: number } | null>(null);
   const sourceTimeRef = useRef(0);
   const sourcePausesRef = useRef<SourcePause[]>([]);
+  const isRecordingRef = useRef(false);
+  const isCompositingRef = useRef(false);
+  const stopRequestedRef = useRef(false);
   const dockHeight = Math.max(230, Math.min(studioSize.height * 0.52, 470));
   const sourceVideoRect = useMemo(
     () => getContainedVideoRect(studioSize, { width: source?.width, height: source?.height }),
@@ -84,6 +94,21 @@ export default function ReactionRecordScreen() {
       sourceTimeRef.current = observedSourceTime;
     }
   }, [observedSourceTime]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    isCompositingRef.current = isCompositing;
+  }, [isCompositing]);
+
+  useEffect(() => {
+    if (!isRecording) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => setRecordingElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000)), 1_000);
+    return () => clearInterval(timer);
+  }, [isRecording]);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -240,6 +265,30 @@ export default function ReactionRecordScreen() {
     return completed;
   }
 
+  function requestStopRecording(reason: string) {
+    if (!shouldStopReactionForSourceEnd({
+      isRecording: isRecordingRef.current,
+      isCompositing: isCompositingRef.current,
+      stopAlreadyRequested: stopRequestedRef.current,
+    })) {
+      return;
+    }
+    stopRequestedRef.current = true;
+    setRecordingStatus(reason);
+    try {
+      player.pause();
+      cameraRef.current?.stopRecording();
+    } catch (error) {
+      stopRequestedRef.current = false;
+      setRecordingStatus(`Could not stop the recording: ${error instanceof Error ? error.message : "unknown camera error"}`);
+      setIsRecording(false);
+    }
+  }
+
+  useEventListener(player, "playToEnd", () => {
+    requestStopRecording("The reel finished, so Reel Reactor is finishing your combined reaction video…");
+  });
+
   function toggleSourcePause() {
     if (!isRecording || isCompositing) return;
     if (isSourcePaused) {
@@ -259,14 +308,7 @@ export default function ReactionRecordScreen() {
     const attempt = ++recordAttempt.current;
     setRecordingStatus(`${isRecording ? "Stop" : "Start"} request #${attempt} received.`);
     if (isRecording) {
-      setRecordingStatus("Finishing and saving your reaction…");
-      try {
-        player.pause();
-        cameraRef.current?.stopRecording();
-      } catch (error) {
-        setRecordingStatus(`Could not stop the recording: ${error instanceof Error ? error.message : "unknown camera error"}`);
-        setIsRecording(false);
-      }
+      requestStopRecording("Finishing and saving your reaction…");
       return;
     }
 
@@ -302,6 +344,8 @@ export default function ReactionRecordScreen() {
     setSourcePauses([]);
     sourcePauseStart.current = null;
     setIsSourcePaused(false);
+    stopRequestedRef.current = false;
+    setRecordingElapsedSeconds(0);
     setIsRecording(true);
     setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
     try {
@@ -346,6 +390,7 @@ export default function ReactionRecordScreen() {
     } finally {
       setIsRecording(false);
       setIsCompositing(false);
+      stopRequestedRef.current = false;
     }
   }
 
@@ -442,7 +487,7 @@ export default function ReactionRecordScreen() {
               style={({ pressed }) => [isRecording ? styles.stopRecordButton : styles.startRecordButton, (pressed || isCompositing) && styles.recordPressed]}
             >
               <MaterialIcons name={isCompositing ? "hourglass-top" : isRecording ? "stop" : isBrowserPreview ? "phone-android" : "fiber-manual-record"} size={isRecording ? 25 : 27} color={isRecording ? "#FF5C35" : "#FFFFFF"} />
-              <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? "Stop recording" : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
+              <Text style={isRecording ? styles.stopRecordLabel : styles.startRecordLabel}>{isCompositing ? "Creating reaction video…" : isRecording ? `Stop recording · ${formatRecordingTime(recordingElapsedSeconds)}` : isBrowserPreview ? "Record on phone" : "Start recording"}</Text>
             </Pressable>
             <View style={[styles.recordingStatusRow, isRecording && styles.recordingStatusActive]}>
               <MaterialIcons name={isRecording ? "fiber-manual-record" : "info-outline"} size={15} color={isRecording ? "#FFB199" : "#C1C9D4"} />
@@ -452,7 +497,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.12"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.13"}</Text>
           </ScrollView>
         </View> : null}
 

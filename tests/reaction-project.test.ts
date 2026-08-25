@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { beginReactionCameraRecording, clampOverlay, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, normalizeSharedLink, validateSourceVideo } from "../lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlay, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, normalizeSharedLink, shouldStopReactionForSourceEnd, validateSourceVideo } from "../lib/reaction-project";
 
 describe("source video validation", () => {
   it("requires a local video URI", () => {
@@ -54,6 +54,13 @@ describe("recording start availability", () => {
 
     await expect(recording).resolves.toBe("file:///reaction.mp4");
     expect(events).toEqual(["camera", "source", "source-error"]);
+  });
+
+  it("stops the camera when the source completes, but never issues a duplicate stop during render", () => {
+    expect(shouldStopReactionForSourceEnd({ isRecording: true, isCompositing: false, stopAlreadyRequested: false })).toBe(true);
+    expect(shouldStopReactionForSourceEnd({ isRecording: false, isCompositing: false, stopAlreadyRequested: false })).toBe(false);
+    expect(shouldStopReactionForSourceEnd({ isRecording: true, isCompositing: true, stopAlreadyRequested: false })).toBe(false);
+    expect(shouldStopReactionForSourceEnd({ isRecording: true, isCompositing: false, stopAlreadyRequested: true })).toBe(false);
   });
 });
 

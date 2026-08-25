@@ -58,6 +58,19 @@ export function beginReactionCameraRecording<T>(input: {
   return recordingPromise;
 }
 
+/**
+ * The browser prototype stops its recording when the source clip ends. The
+ * native studio keeps the same rule, but only while the camera recorder is
+ * active and a stop has not already been requested by the creator.
+ */
+export function shouldStopReactionForSourceEnd(input: {
+  isRecording: boolean;
+  isCompositing: boolean;
+  stopAlreadyRequested: boolean;
+}) {
+  return input.isRecording && !input.isCompositing && !input.stopAlreadyRequested;
+}
+
 export function clampOverlay(
   position: OverlayPosition,
   bounds: { width: number; height: number },
