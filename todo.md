@@ -153,3 +153,6 @@
 - [x] Determine whether a maintained public-reel downloader can support Facebook links without a fragile or credential-dependent always-on service; otherwise keep URL importing unavailable.
 - [x] Replace the server-based URL-import proposal with an on-device Android-native public-link downloader that accepts Share to Reel Reactor URLs, saves supported public clips locally, and falls back clearly for private or blocked links.
 - [ ] Confirm on the owner's Android phone that Share → Reel Reactor appears for a public Facebook URL, opens the local downloader page, and either imports a playable source or shows its explicit fallback message.
+
+- [ ] Fix the Home screen safe-area/scroll layout so content and instructions are reachable above the fixed Android tab bar.
+- [ ] Remove the unintended roughly eight-second reaction-recording cutoff while preserving the working recording and composition behavior.

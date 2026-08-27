@@ -3,7 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { validateSourceVideo } from "@/lib/reaction-project";
@@ -109,7 +109,12 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5" containerClassName="bg-[#0C1018]">
-      <View style={styles.page}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.pageContent}
+        showsVerticalScrollIndicator
+        keyboardShouldPersistTaps="handled"
+      >
         <View>
           <View style={styles.brandRow}>
             <View style={styles.logoMark}><MaterialIcons name="bolt" size={22} color="#FFFFFF" /></View>
@@ -148,13 +153,14 @@ export default function HomeScreen() {
           <MaterialIcons name="info-outline" size={18} color="#AAB3C2" />
           <Text style={styles.noticeText}>Choose a video saved on your device to start a reaction. The original clip stays on your phone.</Text>
         </View>
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, paddingBottom: 8, paddingTop: 11 },
+  page: { flex: 1 },
+  pageContent: { flexGrow: 1, paddingBottom: 122, paddingTop: 11 },
   brandRow: { alignItems: "center", flexDirection: "row", gap: 9 },
   logoMark: { alignItems: "center", backgroundColor: "#FF5C35", borderRadius: 11, height: 37, justifyContent: "center", width: 37 },
   brandName: { color: "#F7F8FA", fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },

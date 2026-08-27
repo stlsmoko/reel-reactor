@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useEvent, useEventListener } from "expo";
+import { useEvent } from "expo";
 import { setAudioModeAsync } from "expo-audio";
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { router, useIsFocused } from "expo-router";
@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, LayoutChangeEvent, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { beginReactionCameraRecording, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, shouldStopReactionForSourceEnd, type OverlayPosition } from "@/lib/reaction-project";
+import { beginReactionCameraRecording, clampOverlayToRect, getContainedVideoRect, getRecordingStartBlocker, type OverlayPosition } from "@/lib/reaction-project";
 import { getCurrentSource, setCurrentReaction } from "@/lib/reaction-session";
 import { composeReactionVideo } from "@/lib/video-compositor";
 
@@ -269,13 +269,7 @@ export default function ReactionRecordScreen() {
   }
 
   function requestStopRecording(reason: string) {
-    if (!shouldStopReactionForSourceEnd({
-      isRecording: isRecordingRef.current,
-      isCompositing: isCompositingRef.current,
-      stopAlreadyRequested: stopRequestedRef.current,
-    })) {
-      return;
-    }
+    if (!isRecordingRef.current || isCompositingRef.current || stopRequestedRef.current) return;
     stopRequestedRef.current = true;
     setRecordingStatus(reason);
     try {
@@ -287,10 +281,6 @@ export default function ReactionRecordScreen() {
       setIsRecording(false);
     }
   }
-
-  useEventListener(player, "playToEnd", () => {
-    requestStopRecording("The reel finished, so Reel Reactor is finishing your combined reaction video…");
-  });
 
   function toggleSourcePause() {
     if (!isRecording || isCompositing) return;
@@ -521,7 +511,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.16"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.17"}</Text>
           </ScrollView>
         </View> : null}
 
