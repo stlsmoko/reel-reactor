@@ -142,7 +142,8 @@
 - [x] Port Claude's browser-flow interaction concepts into the real Expo Router Android studio while preserving native camera recording and FFmpeg MP4 composition.
 - [x] Add and run a private GitHub Actions Android APK build so the owner can proceed without the blocked hosted Expo build quota.
 - [ ] Repair the device-observed review page so its Save and Share controls scroll above the Android navigation area on a 9:16 phone.
-- [ ] Provide a coherent APK installation path when a GitHub debug build is blocked by the existing Expo-signed Reel Reactor package.
+- [x] Provide a coherent APK installation path when a GitHub debug build is blocked by the existing Expo-signed Reel Reactor package: GitHub now builds a distinct `com.app.reelreactor.test` release APK named Reel Reactor Test.
 - [x] Inspect a real owner-device combined output: source video and reaction bubble reach the review screen in one rendered video; final output audio, pause, Green key, and scrolling remain separately unverified.
-- [ ] Diagnose and repair the device-observed startup stall in the installed side-by-side GitHub Android APK before requesting any further installation.
-- [ ] Keep GitHub Actions as the independent Android APK path while the Expo hosted build quota remains exceeded.
+- [x] Diagnose and repair the device-observed startup stall in the installed side-by-side GitHub Android APK before requesting any further installation: the debug APK omitted the embedded JavaScript bundle and awaited Metro; the successful release workflow includes `:app:createBundleReleaseJsAndAssets`.
+- [x] Keep GitHub Actions as the independent Android APK path while the Expo hosted build quota remains exceeded.
+- [ ] Confirm on the owner's Android phone that Reel Reactor Test opens past the splash screen and its review Save and Share controls scroll into reach.
