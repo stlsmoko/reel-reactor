@@ -149,3 +149,6 @@
 - [ ] Confirm on the owner's Android phone that Reel Reactor Test opens past the splash screen and its review Save and Share controls scroll into reach.
 - [x] Make the source video and floating-head positioning surface full-height in the reaction studio; replace the always-open lower controls with a compact collapsible sheet without changing recording or composition behavior.
 - [x] Remove the visible Paste copied post link option and shared-link route because Facebook links are only saved as URLs and cannot supply a source video file.
+- [ ] Assess and add an Android Share to Reel Reactor entry point that accepts a video file or public reel URL while preserving Choose a video as the reliable local-file fallback.
+- [ ] Determine whether a maintained public-reel downloader can support Facebook links without a fragile or credential-dependent always-on service; otherwise keep URL importing unavailable.
+- [ ] Replace the server-based URL-import proposal with an on-device Android-native public-link downloader that accepts Share to Reel Reactor URLs, saves supported public clips locally, and falls back clearly for private or blocked links.

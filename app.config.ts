@@ -43,7 +43,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.15",
+  version: "1.0.16",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -64,7 +64,7 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
-    versionCode: 16,
+    versionCode: 17,
     permissions: ["POST_NOTIFICATIONS"],
     intentFilters: [
       {
@@ -96,6 +96,15 @@ const config: ExpoConfig = {
     "expo-web-browser",
     "ffmpeg-expo",
     "./plugins/with-legacy-android-architecture",
+    "./plugins/with-ytdlp-native-extraction",
+    [
+      "expo-share-intent",
+      {
+        disableIOS: true,
+        androidIntentFilters: ["text/plain", "text/*", "video/*"],
+        androidMultiIntentFilters: ["video/*"],
+      },
+    ],
     [
       "expo-camera",
       {

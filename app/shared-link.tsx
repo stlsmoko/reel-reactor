@@ -1,11 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import ReelImporter from "reel-importer";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { normalizeSharedLink } from "@/lib/reaction-project";
-import { getCurrentSharedLink, setCurrentSharedLink } from "@/lib/reaction-session";
+import { getCurrentSharedLink, setCurrentSharedLink, setCurrentSource } from "@/lib/reaction-session";
 
 export default function SharedLinkScreen() {
   const params = useLocalSearchParams<{ url?: string | string[] }>();
@@ -13,6 +14,8 @@ export default function SharedLinkScreen() {
   const existingLink = getCurrentSharedLink();
   const normalizedIncoming = incomingUrl ? normalizeSharedLink(incomingUrl) : null;
   const sharedUrl = normalizedIncoming ?? existingLink?.url ?? null;
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (normalizedIncoming) setCurrentSharedLink({ url: normalizedIncoming, capturedAt: Date.now() });
@@ -22,6 +25,21 @@ export default function SharedLinkScreen() {
     if (!sharedUrl) return "Shared link";
     try { return new URL(sharedUrl).hostname.replace(/^www\./, ""); } catch { return "Shared link"; }
   }, [sharedUrl]);
+
+  async function importPublicVideo() {
+    if (!sharedUrl || isImporting) return;
+    setImportError(null);
+    setIsImporting(true);
+    try {
+      const imported = await ReelImporter.downloadPublicVideo(sharedUrl);
+      setCurrentSource({ uri: imported.uri, name: imported.fileName, durationMs: undefined, width: undefined, height: undefined });
+      router.replace("/source-setup" as never);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "This link could not be downloaded on this phone. Choose a saved clip instead.");
+    } finally {
+      setIsImporting(false);
+    }
+  }
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5" containerClassName="bg-[#0C1018]">
@@ -35,7 +53,7 @@ export default function SharedLinkScreen() {
 
       <View style={styles.linkBadge}><MaterialIcons name="link" size={27} color="#FF8A6B" /></View>
       <Text style={styles.heading}>{sharedUrl ? "Link captured" : "No link found"}</Text>
-      <Text style={styles.subtitle}>{sharedUrl ? `Reel Reactor saved a link from ${sourceName}.` : "Copy a post link in the social app, then return here and choose Paste copied link."}</Text>
+      <Text style={styles.subtitle}>{sharedUrl ? `Reel Reactor received a public link from ${sourceName}.` : "Share a public post link to Reel Reactor from another Android app."}</Text>
 
       {sharedUrl ? (
         <View style={styles.urlCard}>
@@ -46,15 +64,20 @@ export default function SharedLinkScreen() {
 
       <View style={styles.explanationCard}>
         <MaterialIcons name="info-outline" size={21} color="#AAB3C2" />
-        <Text style={styles.explanationText}>A copied post link identifies what you want to react to, but it does not include the platform’s video file. Choose a saved, rights-cleared copy of the clip to use it in the reaction studio.</Text>
+        <Text style={styles.explanationText}>Reel Reactor will try to download a public playable video directly onto this phone. Private, login-only, or blocked links can fail; you can always choose a saved clip instead.</Text>
       </View>
 
       <View style={styles.spacer} />
-      <Pressable onPress={() => router.replace("/")} style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
-        <MaterialIcons name="video-library" size={22} color="#FFFFFF" />
-        <Text style={styles.primaryLabel}>Choose saved video</Text>
+      {sharedUrl ? <Pressable disabled={isImporting} onPress={importPublicVideo} style={({ pressed }) => [styles.primaryButton, (pressed || isImporting) && styles.primaryPressed]}>
+        <MaterialIcons name={isImporting ? "downloading" : "download"} size={22} color="#FFFFFF" />
+        <Text style={styles.primaryLabel}>{isImporting ? "Downloading public video…" : "Download & react"}</Text>
+      </Pressable> : null}
+      {importError ? <Text style={styles.importError}>{importError}</Text> : null}
+      <Pressable onPress={() => router.replace("/")} style={({ pressed }) => [styles.secondaryButton, pressed && styles.primaryPressed]}>
+        <MaterialIcons name="video-library" size={20} color="#FFB199" />
+        <Text style={styles.secondaryLabel}>Choose saved video instead</Text>
       </Pressable>
-      <Text style={styles.footer}>Direct “Share to Reel Reactor” import requires separate native share-extension work and depends on the source app’s sharing rules.</Text>
+      <Text style={styles.footer}>Public-link downloading runs locally on this Android phone. It cannot bypass a platform’s private or protected access controls.</Text>
     </ScreenContainer>
   );
 }
@@ -75,5 +98,8 @@ const styles = StyleSheet.create({
   primaryButton: { alignItems: "center", backgroundColor: "#FF5C35", borderRadius: 18, flexDirection: "row", gap: 9, height: 58, justifyContent: "center" },
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   primaryLabel: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  secondaryButton: { alignItems: "center", borderColor: "#465267", borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 8, height: 52, justifyContent: "center", marginTop: 11 },
+  secondaryLabel: { color: "#FFB199", fontSize: 14, fontWeight: "800" },
+  importError: { color: "#FFB4A3", fontSize: 12, lineHeight: 18, marginTop: 12, textAlign: "center" },
   footer: { color: "#7E899A", fontSize: 12, lineHeight: 17, marginBottom: 8, marginTop: 14, textAlign: "center" },
 });
