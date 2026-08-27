@@ -147,3 +147,5 @@
 - [x] Diagnose and repair the device-observed startup stall in the installed side-by-side GitHub Android APK before requesting any further installation: the debug APK omitted the embedded JavaScript bundle and awaited Metro; the successful release workflow includes `:app:createBundleReleaseJsAndAssets`.
 - [x] Keep GitHub Actions as the independent Android APK path while the Expo hosted build quota remains exceeded.
 - [ ] Confirm on the owner's Android phone that Reel Reactor Test opens past the splash screen and its review Save and Share controls scroll into reach.
+- [x] Make the source video and floating-head positioning surface full-height in the reaction studio; replace the always-open lower controls with a compact collapsible sheet without changing recording or composition behavior.
+- [x] Remove the visible Paste copied post link option and shared-link route because Facebook links are only saved as URLs and cannot supply a source video file.

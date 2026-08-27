@@ -1,5 +1,4 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -7,8 +6,8 @@ import { useState } from "react";
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { normalizeSharedLink, validateSourceVideo } from "@/lib/reaction-project";
-import { setCurrentSharedLink, setCurrentSource } from "@/lib/reaction-session";
+import { validateSourceVideo } from "@/lib/reaction-project";
+import { setCurrentSource } from "@/lib/reaction-session";
 
 /**
  * Home Screen - NativeWind Example
@@ -108,21 +107,6 @@ export default function HomeScreen() {
     }
   }
 
-  async function pasteSharedLink() {
-    try {
-      const copiedText = await Clipboard.getStringAsync();
-      const url = normalizeSharedLink(copiedText);
-      if (!url) {
-        Alert.alert("No post link found", "Copy a full https:// link from the post’s Share menu, then return and try again.");
-        return;
-      }
-      setCurrentSharedLink({ url, capturedAt: Date.now() });
-      router.push("/shared-link" as never);
-    } catch {
-      Alert.alert("Could not read the clipboard", "Try copying the post link again, then return to Reel Reactor.");
-    }
-  }
-
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5" containerClassName="bg-[#0C1018]">
       <View style={styles.page}>
@@ -156,17 +140,13 @@ export default function HomeScreen() {
           <Text style={styles.primaryLabel}>{isChoosing ? "Opening videos…" : "Choose a video"}</Text>
         </Pressable>
         {pickerError ? <Text accessibilityRole="alert" style={styles.pickerError}>{pickerError}</Text> : null}
-        <Pressable onPress={pasteSharedLink} style={({ pressed }) => [styles.linkButton, pressed && styles.linkPressed]}>
-          <MaterialIcons name="content-paste-go" size={20} color="#FF8A6B" />
-          <Text style={styles.linkButtonLabel}>Paste copied post link</Text>
-        </Pressable>
         <View style={styles.infoRow}>
           <MaterialIcons name="lock-outline" size={15} color="#8792A3" />
           <Text style={styles.infoText}>Personal-use MVP · Videos stay on your device</Text>
         </View>
         <View style={styles.notice}>
           <MaterialIcons name="info-outline" size={18} color="#AAB3C2" />
-          <Text style={styles.noticeText}>Start with a saved clip. Direct importing from a social-app share is the next step and depends on what that app makes available.</Text>
+          <Text style={styles.noticeText}>Choose a video saved on your device to start a reaction. The original clip stays on your phone.</Text>
         </View>
       </View>
     </ScreenContainer>
@@ -198,7 +178,4 @@ const styles = StyleSheet.create({
   infoText: { color: "#8792A3", fontSize: 12 },
   notice: { alignItems: "flex-start", backgroundColor: "#121823", borderRadius: 14, flexDirection: "row", gap: 9, marginTop: 14, padding: 12 },
   noticeText: { color: "#AAB3C2", flex: 1, fontSize: 12, lineHeight: 17 },
-  linkButton: { alignItems: "center", flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 9, paddingVertical: 10 },
-  linkButtonLabel: { color: "#FF8A6B", fontSize: 14, fontWeight: "800" },
-  linkPressed: { opacity: 0.65 },
 });

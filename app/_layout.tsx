@@ -91,7 +91,6 @@ export default function RootLayout() {
             <Stack.Screen name="reaction-studio" />
             <Stack.Screen name="reaction-record" />
             <Stack.Screen name="review" />
-            <Stack.Screen name="shared-link" />
             <Stack.Screen name="oauth/callback" />
           </Stack>
           <StatusBar style="auto" />

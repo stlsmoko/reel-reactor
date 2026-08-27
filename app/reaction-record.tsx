@@ -63,6 +63,7 @@ export default function ReactionRecordScreen() {
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ x: width - 154, y: 126 });
   const [overlayGestureStatus, setOverlayGestureStatus] = useState("Drag to move • pinch to resize");
   const [overlayStyle, setOverlayStyle] = useState<OverlayStyle>("circle");
+  const [isDockExpanded, setIsDockExpanded] = useState(false);
   const [studioSize, setStudioSize] = useState({ width, height });
   const [isSourcePaused, setIsSourcePaused] = useState(false);
   const [, setSourcePauses] = useState<SourcePause[]>([]);
@@ -80,14 +81,16 @@ export default function ReactionRecordScreen() {
   const isCompositingRef = useRef(false);
   const stopRequestedRef = useRef(false);
   const dockHeight = Math.max(230, Math.min(studioSize.height * 0.52, 470));
+  const compactDockHeight = 82;
+  const reservedDockHeight = !isCleanScene && !isRecording && !isCompositing && !isDockExpanded ? compactDockHeight : dockHeight;
   const sourceVideoRect = useMemo(
     () => getContainedVideoRect(studioSize, { width: source?.width, height: source?.height }),
     [source?.height, source?.width, studioSize],
   );
   const overlayRect = useMemo(() => ({
     ...sourceVideoRect,
-    height: Math.max(0, Math.min(sourceVideoRect.height, studioSize.height - dockHeight - sourceVideoRect.y - 12)),
-  }), [dockHeight, sourceVideoRect, studioSize.height]);
+    height: Math.max(0, Math.min(sourceVideoRect.height, studioSize.height - reservedDockHeight - sourceVideoRect.y - 12)),
+  }), [reservedDockHeight, sourceVideoRect, studioSize.height]);
 
   useEffect(() => {
     if (Number.isFinite(observedSourceTime) && observedSourceTime >= 0) {
@@ -345,6 +348,7 @@ export default function ReactionRecordScreen() {
     sourcePauseStart.current = null;
     setIsSourcePaused(false);
     stopRequestedRef.current = false;
+    setIsDockExpanded(false);
     setRecordingElapsedSeconds(0);
     setIsRecording(true);
     setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
@@ -463,9 +467,29 @@ export default function ReactionRecordScreen() {
             </View> : null}
         </View>
 
-        {!isCleanScene ? <View style={[styles.bottomDock, { height: dockHeight }]}>
+        {!isCleanScene && !isRecording && !isCompositing && !isDockExpanded ? <View style={styles.compactDock}>
+          <Pressable onPress={() => setIsDockExpanded(true)} style={({ pressed }) => [styles.positionButton, pressed && styles.modePressed]}>
+            <MaterialIcons name="tune" size={19} color="#FFFFFF" />
+            <Text style={styles.positionButtonLabel}>Position & style</Text>
+          </Pressable>
+          <Pressable
+            hitSlop={12}
+            onPressIn={() => setRecordingStatus("Record control touched. Starting…")}
+            onPress={toggleRecording}
+            style={({ pressed }) => [styles.compactRecordButton, pressed && styles.recordPressed]}
+          >
+            <MaterialIcons name="fiber-manual-record" size={25} color="#FFFFFF" />
+            <Text style={styles.compactRecordLabel}>Record</Text>
+          </Pressable>
+        </View> : null}
+
+        {!isCleanScene && (isDockExpanded || isRecording || isCompositing) ? <View style={[styles.bottomDock, { height: dockHeight }]}>
           <ScrollView style={styles.controlScroll} contentContainerStyle={styles.controlScrollContent} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-            <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : overlayGestureStatus}</Text>
+            {!isRecording && !isCompositing ? <Pressable onPress={() => setIsDockExpanded(false)} style={({ pressed }) => [styles.fullScreenPreviewButton, pressed && styles.modePressed]}>
+              <MaterialIcons name="fullscreen" size={17} color="#FFFFFF" />
+              <Text style={styles.fullScreenPreviewLabel}>Full-screen positioning</Text>
+            </Pressable> : null}
+            <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : isCompositing ? "Creating your combined reaction video…" : overlayGestureStatus}</Text>
             {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
               <MaterialIcons name={isSourcePaused ? "play-arrow" : "pause"} size={22} color="#FFFFFF" />
               <Text style={styles.sourcePauseLabel}>{isSourcePaused ? "Resume reel" : "Pause reel & talk"}</Text>
@@ -497,7 +521,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.14"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.15"}</Text>
           </ScrollView>
         </View> : null}
 
@@ -526,10 +550,17 @@ const styles = StyleSheet.create({
   cameraRetryPressed: { opacity: 0.72 },
   dragBadge: { alignItems: "center", backgroundColor: "rgba(12,16,24,0.76)", borderRadius: 10, flexDirection: "row", gap: 3, left: "50%", marginLeft: -30, paddingHorizontal: 7, paddingVertical: 4, position: "absolute", top: -16 },
   dragBadgeLabel: { color: "#FFFFFF", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
+  compactDock: { alignItems: "center", backgroundColor: "rgba(5,8,13,0.9)", borderTopColor: "rgba(255,255,255,0.14)", borderTopWidth: 1, bottom: 0, elevation: 30, flexDirection: "row", gap: 10, left: 0, paddingHorizontal: 12, paddingVertical: 12, position: "absolute", right: 0, zIndex: 30 },
+  positionButton: { alignItems: "center", backgroundColor: "rgba(27,42,65,0.96)", borderColor: "rgba(255,255,255,0.34)", borderRadius: 15, borderWidth: 1, flex: 1, flexDirection: "row", gap: 7, height: 54, justifyContent: "center" },
+  positionButtonLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  compactRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.92)", borderRadius: 15, borderWidth: 1, flexDirection: "row", gap: 6, height: 54, justifyContent: "center", paddingHorizontal: 17 },
+  compactRecordLabel: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },
   bottomDock: { backgroundColor: "rgba(5,8,13,0.9)", borderTopColor: "rgba(255,255,255,0.14)", borderTopWidth: 1, bottom: 0, elevation: 30, left: 0, position: "absolute", right: 0, zIndex: 30 },
   controlScroll: { flex: 1, width: "100%" },
   controlScrollContent: { alignItems: "center", paddingBottom: 26, paddingHorizontal: 22, paddingTop: 12 },
   instruction: { color: "#FFFFFF", fontSize: 13, fontWeight: "600", marginBottom: 13, textAlign: "center", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 5 },
+  fullScreenPreviewButton: { alignItems: "center", backgroundColor: "rgba(27,42,65,0.88)", borderColor: "rgba(255,255,255,0.28)", borderRadius: 11, borderWidth: 1, flexDirection: "row", gap: 5, marginBottom: 10, paddingHorizontal: 11, paddingVertical: 7 },
+  fullScreenPreviewLabel: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
   startRecordButton: { alignItems: "center", backgroundColor: "#FF5C35", borderColor: "rgba(255,255,255,0.95)", borderRadius: 18, borderWidth: 2, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   stopRecordButton: { alignItems: "center", backgroundColor: "#FFFFFF", borderColor: "#FF5C35", borderRadius: 18, borderWidth: 3, flexDirection: "row", gap: 10, height: 62, justifyContent: "center", width: "100%" },
   startRecordLabel: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
