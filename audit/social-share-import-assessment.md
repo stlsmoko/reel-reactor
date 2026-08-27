@@ -18,6 +18,8 @@ The maintained `youtubedl-android` wrapper packages the yt-dlp executable and a 
 
 The documented Android integration uses Maven Central dependency `io.github.junkfood02.youtubedl-android:library:0.18.1`, requires `android:extractNativeLibs="true"`, and initializes the library in the native application lifecycle. Android scoped storage requires writing downloads to an app-accessible path or the public Downloads/Documents directories. Reel Reactor can instead use its app cache directory, then pass the resulting local file URI to the existing native compositor.
 
+The first real GitHub Android compile reached the `reel-importer` module and identified only a Kotlin API-overload mismatch in the progress-call syntax. The wrapper’s synchronous `execute(request)` overload is now used. Its embedded Python archive caused symbol-strip warnings, but not the build failure; the APK was not produced and no installation was requested.
+
 Source: https://github.com/yausername/youtubedl-android
 
 ## Assessment

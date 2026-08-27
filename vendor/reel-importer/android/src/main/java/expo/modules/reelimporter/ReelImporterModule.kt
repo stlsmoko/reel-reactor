@@ -44,7 +44,7 @@ class ReelImporterModule : Module() {
                     request.addOption("--restrict-filenames")
                     request.addOption("-f", "best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]")
                     request.addOption("-o", outputTemplate)
-                    YoutubeDL.getInstance().execute(request, { _, _ -> })
+                    YoutubeDL.getInstance().execute(request)
 
                     val imported = importsDirectory.listFiles()
                         ?.filter { it.isFile && it.lastModified() >= startedAt - 2_000L && it.length() > 0L }
