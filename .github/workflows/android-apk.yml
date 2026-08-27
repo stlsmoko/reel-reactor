@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  build-debug-apk:
+  build-release-apk:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
@@ -47,16 +47,16 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
 
-      - name: Build debug APK
+      - name: Build standalone release APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Upload Android debug APK
+      - name: Upload standalone Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: reel-reactor-test-v1.0.14-code-15-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: reel-reactor-test-v1.0.14-code-15-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
