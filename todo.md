@@ -174,4 +174,9 @@
 
 - [x] Resolve public Facebook share-link redirects before invoking the Android on-device downloader
 - [x] Surface bounded actionable downloader diagnostics instead of the current generic public-link failure
-- [ ] Validate the downloader repair and package it into a new standalone Android APK
+- [x] Validate the downloader repair and package it into a new standalone Android APK
+
+- [x] Remove pause-and-talk echo or duplicate-audio capture while preserving the paused background freeze
+- [x] Make Stop recording terminate the entire exported video instead of extending the background beyond the reaction
+- [x] Validate both fixes in a standalone Android APK without regressing working Facebook link imports
+- [ ] Build and install v1.0.22/code 23 to verify pause audio no longer echoes and Stop recording ends the whole export on the owner’s Android phone

@@ -38,9 +38,10 @@ export default function ReactionRecordScreen() {
   const player = useVideoPlayer(source?.uri ?? null, (videoPlayer) => {
     videoPlayer.loop = false;
     videoPlayer.audioMixingMode = "mixWithOthers";
-    videoPlayer.volume = 0.7;
+    videoPlayer.volume = 0.45;
     videoPlayer.timeUpdateEventInterval = 0.1;
   });
+  const playerRef = useRef(player);
   const timeUpdate = useEvent(player, "timeUpdate", {
     currentTime: 0,
     currentLiveTimestamp: null,
@@ -273,6 +274,7 @@ export default function ReactionRecordScreen() {
     stopRequestedRef.current = true;
     setRecordingStatus(reason);
     try {
+      playerRef.current.volume = 0;
       player.pause();
       cameraRef.current?.stopRecording();
     } catch (error) {
@@ -286,11 +288,13 @@ export default function ReactionRecordScreen() {
     if (!isRecording || isCompositing) return;
     if (isSourcePaused) {
       closeOpenSourcePause();
+      playerRef.current.volume = 0.45;
       player.play();
       setRecordingStatus("Reel resumed while your reaction recording continues.");
       return;
     }
     const stableSourceTime = Math.max(0, sourceTimeRef.current);
+    playerRef.current.volume = 0;
     player.pause();
     sourcePauseStart.current = { sourceTimeSec: stableSourceTime, wallTimeMs: Date.now() };
     setIsSourcePaused(true);
@@ -340,6 +344,15 @@ export default function ReactionRecordScreen() {
     stopRequestedRef.current = false;
     setIsDockExpanded(false);
     setRecordingElapsedSeconds(0);
+    if (Platform.OS !== "web") {
+      await setAudioModeAsync({
+        allowsRecording: true,
+        interruptionMode: "doNotMix",
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: true,
+      }).catch(() => undefined);
+    }
+    playerRef.current.volume = 0.45;
     setIsRecording(true);
     setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
     try {
@@ -349,6 +362,7 @@ export default function ReactionRecordScreen() {
         startSourcePlayback: async () => {
           player.currentTime = 0;
           sourceTimeRef.current = 0;
+          playerRef.current.volume = 0.45;
           player.play();
         },
         onSourcePlaybackIssue: () => {
@@ -382,6 +396,15 @@ export default function ReactionRecordScreen() {
       setRecordingStatus(`Merged video failed: ${message}`);
       Alert.alert("Merged video failed", `${message}\n\nNo camera-only file was saved as the final reaction video.`);
     } finally {
+      if (Platform.OS !== "web") {
+        setAudioModeAsync({
+          allowsRecording: false,
+          interruptionMode: "mixWithOthers",
+          playsInSilentMode: true,
+          shouldRouteThroughEarpiece: false,
+        }).catch(() => undefined);
+      }
+      playerRef.current.volume = 0.45;
       setIsRecording(false);
       setIsCompositing(false);
       stopRequestedRef.current = false;
