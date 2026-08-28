@@ -32,14 +32,14 @@ const outputPath = join(workDir, "composite.mp4");
 try {
   run("ffmpeg", [
     "-y", "-hide_banner", "-loglevel", "error",
-    "-f", "lavfi", "-i", "color=c=0x26324A:s=720x1280:r=30:d=3",
-    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=3",
+    "-f", "lavfi", "-i", "color=c=0x26324A:s=720x1280:r=30:d=6",
+    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=6",
     "-c:v", "mpeg4", "-q:v", "8", "-c:a", "aac", "-shortest", sourcePath,
   ]);
   run("ffmpeg", [
     "-y", "-hide_banner", "-loglevel", "error",
-    "-f", "lavfi", "-i", "color=c=0xFF5C35:s=480x480:r=30:d=3",
-    "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000:duration=3",
+    "-f", "lavfi", "-i", "color=c=0xFF5C35:s=480x480:r=30:d=2",
+    "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000:duration=2",
     "-c:v", "mpeg4", "-q:v", "8", "-c:a", "aac", "-shortest", reactionPath,
   ]);
 
@@ -56,8 +56,8 @@ try {
   const sourceDb = measureProcessedMean(sourcePath, "volume=0.12");
   const reactionDb = measureProcessedMean(reactionPath, "volume=2.8,alimiter=limit=0.95");
 
-  if (!Number.isFinite(duration) || duration < 2.8) {
-    throw new Error(`Composite duration was unexpectedly short: ${duration}`);
+  if (!Number.isFinite(duration) || duration < 5.8) {
+    throw new Error(`Composite ended with the short reaction recording instead of the six-second source: ${duration}`);
   }
   if (!(reactionDb > sourceDb + 3)) {
     throw new Error(`Reaction level was not clearly above source level: source ${sourceDb} dB, reaction ${reactionDb} dB`);

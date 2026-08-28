@@ -47,7 +47,7 @@ describe("composite command", () => {
     expect(command.filter).toContain("[0:v]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[background]");
     expect(command.filter).toContain("[1:v]scale=244:244:force_original_aspect_ratio=increase,crop=244:244,setsar=1,format=rgba[reaction_rgba]");
     expect(command.filter).not.toContain(";setsar=1");
-    expect(command.filter).toContain("overlay=37:9:eof_action=pass:repeatlast=1:format=auto[video]");
+    expect(command.filter).toContain("overlay=37:9:eof_action=pass:repeatlast=0:format=auto[video]");
     expect(command.args).not.toContain("-shortest");
   });
 

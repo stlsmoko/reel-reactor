@@ -163,3 +163,11 @@
 
 - [x] Lower composed background-reel audio beneath the reaction microphone while preserving pause-and-talk silence sections
 - [x] Re-run audio/compositor tests and render validation for the revised mix
+
+- [ ] Diagnose why the downloaded Reel Reactor Test APK is reported as having no app after uninstalling the previous installation
+- [ ] Verify or replace the standalone APK delivery path and document exact Android reinstall steps
+
+- [ ] Build and verify a replacement v1.0.18/code 19 APK because the installed v1.0.17 build does not contain the visible paste-link control
+
+- [x] Make early reaction stop end only the talking-head layer while the exported background reel continues to completion
+- [x] Render and test a short reaction take against a longer source clip before the next APK build
