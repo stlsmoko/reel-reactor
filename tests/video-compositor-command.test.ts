@@ -51,6 +51,21 @@ describe("composite command", () => {
     expect(command.args).toContain("-shortest");
   });
 
+  it("uses the selected background gain and clamps unsafe values", () => {
+    const baseRequest = {
+      sourcePath: "file:///cache/source.mp4",
+      reactionPath: "file:///cache/reaction.mp4",
+      outputPath: "file:///cache/output.mp4",
+      overlay: { x: 20, y: 80, size: 132 },
+      studioSize: { width: 390, height: 844 },
+    };
+
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.24 }).filter).toContain("[source_audio]volume=0.24[source_audio_scaled]");
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.9 }).filter).toContain("[source_audio]volume=0.4[source_audio_scaled]");
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: -0.1 }).filter).toContain("[source_audio]volume=0[source_audio_scaled]");
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.24 }).filter).toContain("volume=2.8");
+  });
+
   it("trims the final video and audio to the captured Stop time", () => {
     const command = buildCompositeCommand({
       sourcePath: "file:///cache/source.mp4",

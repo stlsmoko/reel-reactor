@@ -29,6 +29,34 @@ function formatRecordingTime(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+const MIN_SOURCE_AUDIO_GAIN = 0;
+const MAX_SOURCE_AUDIO_GAIN = 0.4;
+const DEFAULT_SOURCE_AUDIO_GAIN = 0.12;
+
+function BackgroundVolumeSlider({ value, onChange }: { value: number; onChange: (nextValue: number) => void }) {
+  const [trackWidth, setTrackWidth] = useState(0);
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => {
+      if (trackWidth > 0) onChange(Math.max(MIN_SOURCE_AUDIO_GAIN, Math.min(MAX_SOURCE_AUDIO_GAIN, (event.nativeEvent.locationX / trackWidth) * MAX_SOURCE_AUDIO_GAIN)));
+    },
+    onPanResponderMove: (event) => {
+      if (trackWidth > 0) onChange(Math.max(MIN_SOURCE_AUDIO_GAIN, Math.min(MAX_SOURCE_AUDIO_GAIN, (event.nativeEvent.locationX / trackWidth) * MAX_SOURCE_AUDIO_GAIN)));
+    },
+  }), [onChange, trackWidth]);
+  const percentage = Math.round((value / MAX_SOURCE_AUDIO_GAIN) * 100);
+
+  return (
+    <View style={styles.volumeSliderWrap}>
+      <View onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)} style={styles.volumeTrack} {...panResponder.panHandlers}>
+        <View pointerEvents="none" style={[styles.volumeTrackFill, { width: `${percentage}%` }]} />
+        <View pointerEvents="none" style={[styles.volumeThumb, { left: `${percentage}%` }]} />
+      </View>
+    </View>
+  );
+}
+
 export default function ReactionRecordScreen() {
   const source = getCurrentSource();
   const isBrowserPreview = Platform.OS === "web";
@@ -38,7 +66,7 @@ export default function ReactionRecordScreen() {
   const player = useVideoPlayer(source?.uri ?? null, (videoPlayer) => {
     videoPlayer.loop = false;
     videoPlayer.audioMixingMode = "mixWithOthers";
-    videoPlayer.volume = 0.45;
+    videoPlayer.volume = DEFAULT_SOURCE_AUDIO_GAIN;
     videoPlayer.timeUpdateEventInterval = 0.1;
   });
   const playerRef = useRef(player);
@@ -67,6 +95,7 @@ export default function ReactionRecordScreen() {
   const [isDockExpanded, setIsDockExpanded] = useState(false);
   const [studioSize, setStudioSize] = useState({ width, height });
   const [isSourcePaused, setIsSourcePaused] = useState(false);
+  const [sourceAudioGain, setSourceAudioGain] = useState(DEFAULT_SOURCE_AUDIO_GAIN);
   const [, setSourcePauses] = useState<SourcePause[]>([]);
   const recordAttempt = useRef(0);
   const dragStart = useRef<OverlayPosition>(overlayPosition);
@@ -100,6 +129,10 @@ export default function ReactionRecordScreen() {
       sourceTimeRef.current = observedSourceTime;
     }
   }, [observedSourceTime]);
+
+  useEffect(() => {
+    if (!isSourcePaused) playerRef.current.volume = sourceAudioGain;
+  }, [isSourcePaused, sourceAudioGain]);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -294,7 +327,7 @@ export default function ReactionRecordScreen() {
     if (!isRecording || isCompositing) return;
     if (isSourcePaused) {
       closeOpenSourcePause();
-      playerRef.current.volume = 0.22;
+      playerRef.current.volume = sourceAudioGain;
       player.play();
       setRecordingStatus("Reel resumed while your reaction recording continues.");
       return;
@@ -358,7 +391,7 @@ export default function ReactionRecordScreen() {
         shouldRouteThroughEarpiece: false,
       }).catch(() => undefined);
     }
-    playerRef.current.volume = 0.22;
+    playerRef.current.volume = sourceAudioGain;
     recordingStartedAtMsRef.current = Date.now();
     recordingStopDurationSecRef.current = null;
     setIsRecording(true);
@@ -371,7 +404,7 @@ export default function ReactionRecordScreen() {
         startSourcePlayback: async () => {
           player.currentTime = 0;
           sourceTimeRef.current = 0;
-          playerRef.current.volume = 0.22;
+          playerRef.current.volume = sourceAudioGain;
           player.play();
         },
         onSourcePlaybackIssue: () => {
@@ -392,6 +425,7 @@ export default function ReactionRecordScreen() {
           overlayStyle,
           sourcePauses: completedSourcePauses,
           stopDurationSec: recordingStopDurationSecRef.current ?? undefined,
+          sourceAudioGain,
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
@@ -414,7 +448,7 @@ export default function ReactionRecordScreen() {
           shouldRouteThroughEarpiece: false,
         }).catch(() => undefined);
       }
-      playerRef.current.volume = 0.45;
+      playerRef.current.volume = sourceAudioGain;
       setIsRecording(false);
       setIsCompositing(false);
       recordingStartedAtMsRef.current = null;
@@ -515,6 +549,14 @@ export default function ReactionRecordScreen() {
               <Text style={styles.fullScreenPreviewLabel}>Full-screen positioning</Text>
             </Pressable> : null}
             <Text style={styles.instruction}>{isRecording ? "Your reaction is recording now — tap Stop recording when finished" : isCompositing ? "Creating your combined reaction video…" : overlayGestureStatus}</Text>
+            {!isCompositing ? <View style={styles.volumeControl}>
+              <View style={styles.volumeHeader}>
+                <Text style={styles.volumeLabel}>BACKGROUND REEL AUDIO</Text>
+                <Text style={styles.volumeValue}>{Math.round((sourceAudioGain / MAX_SOURCE_AUDIO_GAIN) * 100)}%</Text>
+              </View>
+              <BackgroundVolumeSlider value={sourceAudioGain} onChange={setSourceAudioGain} />
+              <Text style={styles.volumeHint}>Lower the reel to keep your reaction clear. This level is used in the final export.</Text>
+            </View> : null}
             {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
               <MaterialIcons name={isSourcePaused ? "play-arrow" : "pause"} size={22} color="#FFFFFF" />
               <Text style={styles.sourcePauseLabel}>{isSourcePaused ? "Resume reel" : "Pause reel & talk"}</Text>
@@ -546,7 +588,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.23"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.24"}</Text>
           </ScrollView>
         </View> : null}
 
@@ -594,6 +636,15 @@ const styles = StyleSheet.create({
   recordingStatusActive: { borderColor: "rgba(255,92,53,0.75)", borderWidth: 1 },
   recordingStatusText: { color: "#C1C9D4", flex: 1, fontSize: 11, fontWeight: "600", lineHeight: 15 },
   recordingStatusTextActive: { color: "#FFDFD6" },
+  volumeControl: { backgroundColor: "rgba(12,16,24,0.86)", borderColor: "rgba(255,255,255,0.16)", borderRadius: 14, borderWidth: 1, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, width: "100%" },
+  volumeHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 7 },
+  volumeLabel: { color: "#AAB3C2", fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  volumeValue: { color: "#FFB199", fontSize: 12, fontWeight: "900" },
+  volumeSliderWrap: { height: 32, justifyContent: "center", width: "100%" },
+  volumeTrack: { backgroundColor: "#465267", borderRadius: 4, height: 7, position: "relative", width: "100%" },
+  volumeTrackFill: { backgroundColor: "#FF5C35", borderRadius: 4, bottom: 0, left: 0, position: "absolute", top: 0 },
+  volumeThumb: { backgroundColor: "#FFFFFF", borderColor: "#FFB199", borderRadius: 10, borderWidth: 2, height: 20, marginLeft: -10, position: "absolute", top: -7, width: 20 },
+  volumeHint: { color: "#AAB3C2", fontSize: 10, lineHeight: 14, marginTop: 3 },
   sourcePauseButton: { alignItems: "center", backgroundColor: "rgba(27, 42, 65, 0.94)", borderColor: "rgba(255,255,255,0.48)", borderRadius: 14, borderWidth: 1, flexDirection: "row", gap: 8, marginBottom: 10, paddingHorizontal: 16, paddingVertical: 11, width: "100%" },
   sourcePauseLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
   styleSelector: { backgroundColor: "rgba(12,16,24,0.86)", borderColor: "rgba(255,255,255,0.16)", borderRadius: 14, borderWidth: 1, marginBottom: 10, padding: 10, width: "100%" },

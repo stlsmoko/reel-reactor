@@ -5,6 +5,7 @@ export type CompositeGeometry = {
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   stopDurationSec?: number;
+  sourceAudioGain?: number;
 };
 
 const OUTPUT_WIDTH = 720;
@@ -115,6 +116,9 @@ export function buildCompositeCommand(
   const stopDurationSec = Number.isFinite(request.stopDurationSec) && (request.stopDurationSec ?? 0) > 0.05
     ? seconds(request.stopDurationSec as number)
     : null;
+  const sourceAudioGain = Number.isFinite(request.sourceAudioGain)
+    ? seconds(Math.max(0, Math.min(0.4, request.sourceAudioGain as number)))
+    : "0.12";
   const reactionBase = `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1`;
   const reactionFilters = overlayStyle === "circle"
     ? [
@@ -143,7 +147,7 @@ export function buildCompositeCommand(
     ...reactionFilters,
     ...timelineFilters,
     `${backgroundLabel}${reactionLabel}overlay=${overlay.x}:${overlay.y}:eof_action=${overlayEofAction}:repeatlast=0:format=auto[video]`,
-    `${sourceAudioLabel}volume=0.12[source_audio_scaled]`,
+    `${sourceAudioLabel}volume=${sourceAudioGain}[source_audio_scaled]`,
     `${reactionAudioPrefix}aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]`,
     `[source_audio_scaled][reaction_audio]amix=inputs=2:duration=${mixDuration}:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]`,
   ].join(";");

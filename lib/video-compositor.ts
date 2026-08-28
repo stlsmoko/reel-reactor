@@ -11,6 +11,7 @@ export type CompositeRequest = {
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   stopDurationSec?: number;
+  sourceAudioGain?: number;
   onProgress?: (processedMs: number) => void;
 };
 

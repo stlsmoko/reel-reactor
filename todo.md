@@ -184,3 +184,7 @@
 - [x] Restore audible source monitoring during normal reaction recording while keeping it muted only during pause
 - [x] Make exported output duration follow the actual Stop time instead of the full background source duration
 - [x] Validate both regressions and package the repair into a new standalone Android APK
+
+- [x] Add a reachable background-reel volume slider to the reaction studio
+- [x] Use the selected background volume for live monitoring and the exported FFmpeg mix while preserving reaction microphone gain
+- [ ] Validate slider bounds, compositor audio output, and package the feature into a new standalone Android APK
