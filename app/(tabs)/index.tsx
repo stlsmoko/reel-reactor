@@ -3,11 +3,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { validateSourceVideo } from "@/lib/reaction-project";
-import { setCurrentSource } from "@/lib/reaction-session";
+import { normalizeSharedLink, validateSourceVideo } from "@/lib/reaction-project";
+import { setCurrentSharedLink, setCurrentSource } from "@/lib/reaction-session";
 
 /**
  * Home Screen - NativeWind Example
@@ -24,6 +24,9 @@ import { setCurrentSource } from "@/lib/reaction-session";
 export default function HomeScreen() {
   const [isChoosing, setIsChoosing] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
+  const [isLinkEntryOpen, setIsLinkEntryOpen] = useState(false);
+  const [linkDraft, setLinkDraft] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   async function chooseVideo() {
     if (isChoosing) return;
@@ -107,6 +110,18 @@ export default function HomeScreen() {
     }
   }
 
+  function importByLink() {
+    const sharedUrl = normalizeSharedLink(linkDraft);
+    if (!sharedUrl) {
+      setLinkError("Paste a full public link beginning with https://.");
+      return;
+    }
+
+    setLinkError(null);
+    setCurrentSharedLink({ url: sharedUrl, capturedAt: Date.now() });
+    router.push({ pathname: "/shared-link", params: { url: sharedUrl } } as never);
+  }
+
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5" containerClassName="bg-[#0C1018]">
       <ScrollView
@@ -144,6 +159,45 @@ export default function HomeScreen() {
           <MaterialIcons name="video-library" size={22} color="#FFFFFF" />
           <Text style={styles.primaryLabel}>{isChoosing ? "Opening videos…" : "Choose a video"}</Text>
         </Pressable>
+        <Pressable
+          onPress={() => {
+            setLinkError(null);
+            setIsLinkEntryOpen((open) => !open);
+          }}
+          style={({ pressed }) => [styles.linkButton, pressed && styles.primaryPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={isLinkEntryOpen ? "Close import by link" : "Import video by link"}
+        >
+          <MaterialIcons name="link" size={21} color="#FFB199" />
+          <Text style={styles.linkButtonLabel}>{isLinkEntryOpen ? "Hide link importer" : "Import video by link"}</Text>
+        </Pressable>
+        {isLinkEntryOpen ? (
+          <View style={styles.linkImporter}>
+            <Text style={styles.linkImporterTitle}>Paste a public reel link</Text>
+            <Text style={styles.linkImporterCopy}>Reel Reactor will try to download it locally, then open the reaction setup.</Text>
+            <TextInput
+              value={linkDraft}
+              onChangeText={(value) => {
+                setLinkDraft(value);
+                if (linkError) setLinkError(null);
+              }}
+              onSubmitEditing={importByLink}
+              placeholder="https://…"
+              placeholderTextColor="#6F7B8E"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="done"
+              style={styles.linkInput}
+              accessibilityLabel="Public video link"
+            />
+            <Pressable onPress={importByLink} style={({ pressed }) => [styles.linkSubmit, pressed && styles.primaryPressed]}>
+              <MaterialIcons name="download" size={19} color="#FFFFFF" />
+              <Text style={styles.linkSubmitLabel}>Continue with link</Text>
+            </Pressable>
+            {linkError ? <Text accessibilityRole="alert" style={styles.linkError}>{linkError}</Text> : null}
+          </View>
+        ) : null}
         {pickerError ? <Text accessibilityRole="alert" style={styles.pickerError}>{pickerError}</Text> : null}
         <View style={styles.infoRow}>
           <MaterialIcons name="lock-outline" size={15} color="#8792A3" />
@@ -179,6 +233,15 @@ const styles = StyleSheet.create({
   primaryButton: { alignItems: "center", backgroundColor: "#FF5C35", borderRadius: 18, flexDirection: "row", gap: 10, height: 58, justifyContent: "center" },
   primaryPressed: { opacity: 0.86, transform: [{ scale: 0.98 }] },
   primaryLabel: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  linkButton: { alignItems: "center", borderColor: "#465267", borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 8, height: 52, justifyContent: "center", marginTop: 11 },
+  linkButtonLabel: { color: "#FFB199", fontSize: 14, fontWeight: "800" },
+  linkImporter: { backgroundColor: "#171E2B", borderColor: "#283244", borderRadius: 17, borderWidth: 1, marginTop: 12, padding: 14 },
+  linkImporterTitle: { color: "#F7F8FA", fontSize: 14, fontWeight: "800" },
+  linkImporterCopy: { color: "#AAB3C2", fontSize: 12, lineHeight: 17, marginTop: 5 },
+  linkInput: { backgroundColor: "#0C1018", borderColor: "#465267", borderRadius: 12, borderWidth: 1, color: "#F7F8FA", fontSize: 14, height: 48, marginTop: 12, paddingHorizontal: 13 },
+  linkSubmit: { alignItems: "center", backgroundColor: "#D94A2A", borderRadius: 13, flexDirection: "row", gap: 7, height: 47, justifyContent: "center", marginTop: 10 },
+  linkSubmitLabel: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  linkError: { color: "#FFB4A3", fontSize: 12, lineHeight: 17, marginTop: 9 },
   pickerError: { color: "#FFB4A3", fontSize: 12, lineHeight: 17, marginTop: 10, textAlign: "center" },
   infoRow: { alignItems: "center", flexDirection: "row", gap: 6, justifyContent: "center", marginTop: 13 },
   infoText: { color: "#8792A3", fontSize: 12 },

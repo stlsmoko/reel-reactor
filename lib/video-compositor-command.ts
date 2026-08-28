@@ -125,7 +125,7 @@ export function buildCompositeCommand(
     ...buildSourceTimelineFilters(request.sourcePauses),
     ...reactionFilters,
     `[background][reaction]overlay=${overlay.x}:${overlay.y}:eof_action=pass:repeatlast=1:format=auto[video]`,
-    "[source_audio]volume=0.18[source_audio_scaled]",
+    "[source_audio]volume=0.12[source_audio_scaled]",
     "[1:a]aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]",
     "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]",
   ].join(";");

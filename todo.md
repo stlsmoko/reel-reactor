@@ -156,3 +156,10 @@
 
 - [ ] Fix the Home screen safe-area/scroll layout so content and instructions are reachable above the fixed Android tab bar.
 - [ ] Remove the unintended roughly eight-second reaction-recording cutoff while preserving the working recording and composition behavior.
+
+- [x] Restore a visible Home-screen import-by-link control and verify it starts the local public-link downloader
+- [ ] Preserve and verify Android Share → Reel Reactor URL import behavior
+- [x] Re-run automated checks and validate the updated manual-link flow before the next APK build
+
+- [x] Lower composed background-reel audio beneath the reaction microphone while preserving pause-and-talk silence sections
+- [x] Re-run audio/compositor tests and render validation for the revised mix

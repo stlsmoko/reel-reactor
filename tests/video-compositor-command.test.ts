@@ -40,7 +40,7 @@ describe("composite command", () => {
     ]));
     expect(command.filter).toContain("[background][reaction]overlay=");
     expect(command.filter).toContain("[reaction_rgba][reaction_alpha]alphamerge[reaction]");
-    expect(command.filter).toContain("[source_audio]volume=0.18[source_audio_scaled]");
+    expect(command.filter).toContain("[source_audio]volume=0.12[source_audio_scaled]");
     expect(command.filter).toContain("[1:a]aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]");
     expect(command.filter).toContain("amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]");
     expect(command.filter).toContain("pad=720:1280");
