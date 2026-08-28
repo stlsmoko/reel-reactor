@@ -171,3 +171,7 @@
 
 - [x] Make early reaction stop end only the talking-head layer while the exported background reel continues to completion
 - [x] Render and test a short reaction take against a longer source clip before the next APK build
+
+- [x] Resolve public Facebook share-link redirects before invoking the Android on-device downloader
+- [x] Surface bounded actionable downloader diagnostics instead of the current generic public-link failure
+- [ ] Validate the downloader repair and package it into a new standalone Android APK

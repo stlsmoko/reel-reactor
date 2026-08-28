@@ -3,6 +3,7 @@ package expo.modules.reelimporter
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -15,6 +16,28 @@ import java.io.File
 
 class ReelImporterModule : Module() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private fun isFacebookUrl(url: java.net.URL): Boolean {
+        val host = url.host.lowercase()
+        return host == "facebook.com" || host.endsWith(".facebook.com") || host == "fb.watch"
+    }
+
+    private fun importFormatFor(url: java.net.URL): String {
+        // Facebook exposes fully playable progressive MP4 variants as hd/sd.
+        // The prior selector demanded codec metadata that Facebook omits for
+        // these variants, causing valid public share links to fail before download.
+        return if (isFacebookUrl(url)) "hd/sd" else "best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]"
+    }
+
+    private fun downloadDetail(error: YoutubeDLException): String {
+        val detail = error.message
+            ?.lineSequence()
+            ?.map { it.trim() }
+            ?.lastOrNull { it.isNotBlank() }
+            ?.take(300)
+            ?: return ""
+        return " Details: $detail"
+    }
 
     override fun definition() = ModuleDefinition {
         Name("ReelImporter")
@@ -30,6 +53,14 @@ class ReelImporterModule : Module() {
                     val context = appContext.reactContext
                         ?: throw IllegalStateException("Reel Reactor is still opening. Try importing the link again in a moment.")
                     YoutubeDL.getInstance().init(context)
+                    try {
+                        // Facebook’s extractor changes often. Use the supported stable
+                        // updater when a network connection is available, while still
+                        // allowing the bundled extractor to be used if the update fails.
+                        YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel._STABLE)
+                    } catch (updateError: Exception) {
+                        Log.w("ReelImporter", "Could not refresh yt-dlp; using the bundled extractor.", updateError)
+                    }
 
                     val importsDirectory = File(context.cacheDir, "reel-reactor-imports")
                     if (!importsDirectory.exists() && !importsDirectory.mkdirs()) {
@@ -42,7 +73,7 @@ class ReelImporterModule : Module() {
                     request.addOption("--no-playlist")
                     request.addOption("--no-mtime")
                     request.addOption("--restrict-filenames")
-                    request.addOption("-f", "best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]")
+                    request.addOption("-f", importFormatFor(parsedUrl))
                     request.addOption("-o", outputTemplate)
                     YoutubeDL.getInstance().execute(request)
 
@@ -59,7 +90,7 @@ class ReelImporterModule : Module() {
                 } catch (error: YoutubeDLException) {
                     promise.reject(
                         "PUBLIC_LINK_UNAVAILABLE",
-                        "This link could not be downloaded on this phone. It may be private, require a Facebook login, or no longer expose a playable video. Choose a saved copy instead.",
+                        "Reel Reactor could not download a playable public video from this link. It may be private, require a Facebook login, or no longer expose a downloadable video.${downloadDetail(error)} Choose a saved copy instead.",
                         error
                     )
                 } catch (error: Exception) {
