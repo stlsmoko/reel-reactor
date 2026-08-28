@@ -4,6 +4,7 @@ export type CompositeGeometry = {
   sourceSize?: { width?: number; height?: number };
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
+  stopDurationSec?: number;
 };
 
 const OUTPUT_WIDTH = 720;
@@ -111,6 +112,9 @@ export function buildCompositeCommand(
 ) {
   const overlay = getOutputOverlay(request);
   const overlayStyle = request.overlayStyle ?? "circle";
+  const stopDurationSec = Number.isFinite(request.stopDurationSec) && (request.stopDurationSec ?? 0) > 0.05
+    ? seconds(request.stopDurationSec as number)
+    : null;
   const reactionBase = `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1`;
   const reactionFilters = overlayStyle === "circle"
     ? [
@@ -121,13 +125,27 @@ export function buildCompositeCommand(
     : overlayStyle === "green-screen"
       ? [`${reactionBase},format=rgba,chromakey=0x00FF00:0.32:0.12[reaction]`]
       : [`${reactionBase}[reaction]`];
+  const timelineFilters = stopDurationSec
+    ? [
+        `[background]trim=duration=${stopDurationSec},setpts=PTS-STARTPTS[background_trimmed]`,
+        `[reaction]trim=duration=${stopDurationSec},setpts=PTS-STARTPTS[reaction_trimmed]`,
+        `[source_audio]atrim=duration=${stopDurationSec},asetpts=PTS-STARTPTS[source_audio_trimmed]`,
+      ]
+    : [];
+  const backgroundLabel = stopDurationSec ? "[background_trimmed]" : "[background]";
+  const reactionLabel = stopDurationSec ? "[reaction_trimmed]" : "[reaction]";
+  const sourceAudioLabel = stopDurationSec ? "[source_audio_trimmed]" : "[source_audio]";
+  const reactionAudioPrefix = stopDurationSec ? `[1:a]atrim=duration=${stopDurationSec},` : "[1:a]";
+  const overlayEofAction = stopDurationSec ? "pass" : "endall";
+  const mixDuration = stopDurationSec ? "longest" : "shortest";
   const filter = [
     ...buildSourceTimelineFilters(request.sourcePauses),
     ...reactionFilters,
-    `[background][reaction]overlay=${overlay.x}:${overlay.y}:eof_action=endall:repeatlast=0:format=auto[video]`,
-    "[source_audio]volume=0.12[source_audio_scaled]",
-    "[1:a]aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]",
-    "[source_audio_scaled][reaction_audio]amix=inputs=2:duration=shortest:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]",
+    ...timelineFilters,
+    `${backgroundLabel}${reactionLabel}overlay=${overlay.x}:${overlay.y}:eof_action=${overlayEofAction}:repeatlast=0:format=auto[video]`,
+    `${sourceAudioLabel}volume=0.12[source_audio_scaled]`,
+    `${reactionAudioPrefix}aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]`,
+    `[source_audio_scaled][reaction_audio]amix=inputs=2:duration=${mixDuration}:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]`,
   ].join(";");
 
   return {
@@ -143,7 +161,7 @@ export function buildCompositeCommand(
       "-q:v", "4",
       "-pix_fmt", "yuv420p",
       "-c:a", "aac",
-      "-shortest",
+      ...(stopDurationSec ? ["-t", stopDurationSec] : ["-shortest"]),
       request.outputPath,
     ],
   };

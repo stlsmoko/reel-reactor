@@ -81,6 +81,8 @@ export default function ReactionRecordScreen() {
   const isRecordingRef = useRef(false);
   const isCompositingRef = useRef(false);
   const stopRequestedRef = useRef(false);
+  const recordingStartedAtMsRef = useRef<number | null>(null);
+  const recordingStopDurationSecRef = useRef<number | null>(null);
   const dockHeight = Math.max(230, Math.min(studioSize.height * 0.52, 470));
   const compactDockHeight = 82;
   const reservedDockHeight = !isCleanScene && !isRecording && !isCompositing && !isDockExpanded ? compactDockHeight : dockHeight;
@@ -272,6 +274,10 @@ export default function ReactionRecordScreen() {
   function requestStopRecording(reason: string) {
     if (!isRecordingRef.current || isCompositingRef.current || stopRequestedRef.current) return;
     stopRequestedRef.current = true;
+    const recordingStartedAtMs = recordingStartedAtMsRef.current;
+    recordingStopDurationSecRef.current = recordingStartedAtMs
+      ? Math.max(0.1, (Date.now() - recordingStartedAtMs) / 1_000)
+      : null;
     setRecordingStatus(reason);
     try {
       playerRef.current.volume = 0;
@@ -288,7 +294,7 @@ export default function ReactionRecordScreen() {
     if (!isRecording || isCompositing) return;
     if (isSourcePaused) {
       closeOpenSourcePause();
-      playerRef.current.volume = 0.45;
+      playerRef.current.volume = 0.22;
       player.play();
       setRecordingStatus("Reel resumed while your reaction recording continues.");
       return;
@@ -347,13 +353,16 @@ export default function ReactionRecordScreen() {
     if (Platform.OS !== "web") {
       await setAudioModeAsync({
         allowsRecording: true,
-        interruptionMode: "doNotMix",
+        interruptionMode: "mixWithOthers",
         playsInSilentMode: true,
-        shouldRouteThroughEarpiece: true,
+        shouldRouteThroughEarpiece: false,
       }).catch(() => undefined);
     }
-    playerRef.current.volume = 0.45;
+    playerRef.current.volume = 0.22;
+    recordingStartedAtMsRef.current = Date.now();
+    recordingStopDurationSecRef.current = null;
     setIsRecording(true);
+
     setRecordingStatus(`Start request #${attempt}: calling the native camera recorder…`);
     try {
       setRecordingStatus(`Start request #${attempt}: native recorder started. Tap Stop recording when you are finished.`);
@@ -362,7 +371,7 @@ export default function ReactionRecordScreen() {
         startSourcePlayback: async () => {
           player.currentTime = 0;
           sourceTimeRef.current = 0;
-          playerRef.current.volume = 0.45;
+          playerRef.current.volume = 0.22;
           player.play();
         },
         onSourcePlaybackIssue: () => {
@@ -382,6 +391,7 @@ export default function ReactionRecordScreen() {
           sourceSize: { width: source?.width, height: source?.height },
           overlayStyle,
           sourcePauses: completedSourcePauses,
+          stopDurationSec: recordingStopDurationSecRef.current ?? undefined,
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
@@ -407,6 +417,8 @@ export default function ReactionRecordScreen() {
       playerRef.current.volume = 0.45;
       setIsRecording(false);
       setIsCompositing(false);
+      recordingStartedAtMsRef.current = null;
+      recordingStopDurationSecRef.current = null;
       stopRequestedRef.current = false;
     }
   }
@@ -534,7 +546,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.17"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.23"}</Text>
           </ScrollView>
         </View> : null}
 

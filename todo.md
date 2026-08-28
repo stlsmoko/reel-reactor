@@ -180,3 +180,7 @@
 - [x] Make Stop recording terminate the entire exported video instead of extending the background beyond the reaction
 - [x] Validate both fixes in a standalone Android APK without regressing working Facebook link imports
 - [ ] Build and install v1.0.22/code 23 to verify pause audio no longer echoes and Stop recording ends the whole export on the owner’s Android phone
+
+- [x] Restore audible source monitoring during normal reaction recording while keeping it muted only during pause
+- [x] Make exported output duration follow the actual Stop time instead of the full background source duration
+- [x] Validate both regressions and package the repair into a new standalone Android APK

@@ -51,6 +51,26 @@ describe("composite command", () => {
     expect(command.args).toContain("-shortest");
   });
 
+  it("trims the final video and audio to the captured Stop time", () => {
+    const command = buildCompositeCommand({
+      sourcePath: "file:///cache/source.mp4",
+      reactionPath: "file:///cache/reaction.mp4",
+      outputPath: "file:///cache/output.mp4",
+      overlay: { x: 20, y: 80, size: 132 },
+      studioSize: { width: 390, height: 844 },
+      stopDurationSec: 3.25,
+    });
+
+    expect(command.filter).toContain("[background]trim=duration=3.25,setpts=PTS-STARTPTS[background_trimmed]");
+    expect(command.filter).toContain("[reaction]trim=duration=3.25,setpts=PTS-STARTPTS[reaction_trimmed]");
+    expect(command.filter).toContain("[source_audio]atrim=duration=3.25,asetpts=PTS-STARTPTS[source_audio_trimmed]");
+    expect(command.filter).toContain("[1:a]atrim=duration=3.25,aresample=48000");
+    expect(command.filter).toContain("overlay=37:9:eof_action=pass:repeatlast=0:format=auto[video]");
+    expect(command.filter).toContain("amix=inputs=2:duration=longest");
+    expect(command.args).toEqual(expect.arrayContaining(["-t", "3.25"]));
+    expect(command.args).not.toContain("-shortest");
+  });
+
   it("can render a square or a green-screen keyed reaction layer without the circular alpha mask", () => {
     const baseRequest = {
       sourcePath: "file:///cache/source.mp4",

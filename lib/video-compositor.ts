@@ -10,6 +10,7 @@ export type CompositeRequest = {
   sourceSize?: { width?: number; height?: number };
   overlayStyle?: "circle" | "square" | "green-screen";
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
+  stopDurationSec?: number;
   onProgress?: (processedMs: number) => void;
 };
 

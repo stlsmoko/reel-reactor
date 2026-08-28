@@ -52,6 +52,7 @@ try {
     outputPath,
     overlay: { x: 20, y: 80, size: 132 },
     studioSize: { width: 390, height: 844 },
+    stopDurationSec: 2,
   });
   run("ffmpeg", ["-hide_banner", "-loglevel", "error", ...command.args]);
 
@@ -79,6 +80,7 @@ try {
     overlay: { x: 20, y: 80, size: 132 },
     studioSize: { width: 390, height: 844 },
     sourcePauses: [{ sourceTimeSec: 2, durationSec: 2 }],
+    stopDurationSec: 6,
   });
   run("ffmpeg", ["-hide_banner", "-loglevel", "error", ...pauseCommand.args]);
   const pauseDuration = Number(run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "default=nk=1:nw=1", pauseOutputPath], true).trim());
