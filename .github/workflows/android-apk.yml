@@ -48,6 +48,8 @@ jobs:
         run: |
           git fetch --depth=1 origin 211ba865950936557b066dc431e7875d89a7ad15
           git checkout 211ba865950936557b066dc431e7875d89a7ad15 -- vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build
+          mkdir -p node_modules/ffmpeg-expo
+          cp -a vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build node_modules/ffmpeg-expo/
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
