@@ -41,7 +41,7 @@ jobs:
       - name: Install Android CMake
         run: sdkmanager "cmake;3.22.1"
 
-      - - name: Install JavaScript dependencies
+      - name: Install JavaScript dependencies
         run: pnpm install
 
       - name: Restore ffmpeg-expo plugin files
@@ -51,6 +51,12 @@ jobs:
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
+
+      - name: Build standalone release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload standalone Android APK
         uses: actions/upload-artifact@v4
