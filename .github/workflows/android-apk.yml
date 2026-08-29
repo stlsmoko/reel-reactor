@@ -44,26 +44,20 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install
 
-      - name: Restore ffmpeg-expo plugin files
+      - name: Restore missing build files
         run: |
           git fetch --depth=1 origin 211ba865950936557b066dc431e7875d89a7ad15
-          git checkout 211ba865950936557b066dc431e7875d89a7ad15 -- vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build
-          mkdir -p node_modules/ffmpeg-expo
-          cp -a vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build node_modules/ffmpeg-expo/
+          git checkout 211ba865950936557b066dc431e7875d89a7ad15 -- vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build || true
+          git checkout 211ba865950936557b066dc431e7875d89a7ad15 -- assets/images/icon.png assets/images/splash-icon.png assets/images/favicon.png || true
+          mkdir -p node_modules/ffmpeg-expo assets/images
+          cp -a vendor/ffmpeg-expo/plugin vendor/ffmpeg-expo/build node_modules/ffmpeg-expo/ || true
+          if [ ! -f assets/images/icon.png ]; then cp assets/images/android-icon-foreground.png assets/images/icon.png; fi
+          if [ ! -f assets/images/splash-icon.png ]; then cp assets/images/android-icon-foreground.png assets/images/splash-icon.png; fi
+          if [ ! -f assets/images/favicon.png ]; then cp assets/images/android-icon-foreground.png assets/images/favicon.png; fi
+          test -f node_modules/ffmpeg-expo/plugin/build/index.js
+          test -f assets/images/icon.png
+          test -f assets/images/splash-icon.png
+          ls -la assets/images node_modules/ffmpeg-expo/plugin/build
 
       - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install
-
-      - name: Build standalone release APK
-        run: |
-          chmod +x android/gradlew
-          cd android
-          ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Upload standalone Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: reel-reactor-test-v1.0.24-code-25-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
-          retention-days: 14
+        run: npx expo prebuild --platform android --
