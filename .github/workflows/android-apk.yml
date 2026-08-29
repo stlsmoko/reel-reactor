@@ -57,7 +57,20 @@ jobs:
           test -f node_modules/ffmpeg-expo/plugin/build/index.js
           test -f assets/images/icon.png
           test -f assets/images/splash-icon.png
-          ls -la assets/images node_modules/ffmpeg-expo/plugin/build
 
       - name: Generate Android project
-        run: npx expo prebuild --platform android --
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build standalone release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Upload standalone Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-reactor-test-v1.0.24-code-25-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
