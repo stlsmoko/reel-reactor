@@ -6,6 +6,7 @@ export type CompositeGeometry = {
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   stopDurationSec?: number;
   sourceAudioGain?: number;
+  reactionAudioGain?: number;
 };
 
 const OUTPUT_WIDTH = 720;
@@ -117,8 +118,11 @@ export function buildCompositeCommand(
     ? seconds(request.stopDurationSec as number)
     : null;
   const sourceAudioGain = Number.isFinite(request.sourceAudioGain)
-    ? seconds(Math.max(0, Math.min(0.4, request.sourceAudioGain as number)))
-    : "0.12";
+    ? seconds(Math.max(0, Math.min(2.0, request.sourceAudioGain as number)))
+    : "0.25";
+  const reactionAudioGain = Number.isFinite(request.reactionAudioGain)
+    ? seconds(Math.max(0, Math.min(4.0, request.reactionAudioGain as number)))
+    : "2.8";
   const reactionBase = `[1:v]scale=${overlay.size}:${overlay.size}:force_original_aspect_ratio=increase,crop=${overlay.size}:${overlay.size},setsar=1`;
   const reactionFilters = overlayStyle === "circle"
     ? [
@@ -148,7 +152,7 @@ export function buildCompositeCommand(
     ...timelineFilters,
     `${backgroundLabel}${reactionLabel}overlay=${overlay.x}:${overlay.y}:eof_action=${overlayEofAction}:repeatlast=0:format=auto[video]`,
     `${sourceAudioLabel}volume=${sourceAudioGain}[source_audio_scaled]`,
-    `${reactionAudioPrefix}aresample=48000,volume=2.8,alimiter=limit=0.95[reaction_audio]`,
+    `${reactionAudioPrefix}aresample=48000,volume=${reactionAudioGain},alimiter=limit=0.95[reaction_audio]`,
     `[source_audio_scaled][reaction_audio]amix=inputs=2:duration=${mixDuration}:dropout_transition=0:normalize=0,alimiter=limit=0.96[audio]`,
   ].join(";");
 

@@ -1,0 +1,11 @@
+{
+  "name": "Reel Reactor Studio",
+  "description": "A reaction video recording studio that combines source video clips with a movable, resizable camera bubble and synchronized mixed audio.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

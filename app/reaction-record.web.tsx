@@ -51,6 +51,8 @@ export default function DesktopReactionRecordScreen() {
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const sourceAudioRef = useRef<MediaElementAudioSourceNode | null>(null);
   const microphoneAudioRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const sourceGainRef = useRef<GainNode | null>(null);
+  const micGainRef = useRef<GainNode | null>(null);
   const frameRef = useRef<number | null>(null);
   const drawSceneRef = useRef<() => void>(() => undefined);
   const chunksRef = useRef<Blob[]>([]);
@@ -61,6 +63,9 @@ export default function DesktopReactionRecordScreen() {
   const [preparing, setPreparing] = useState(false);
   const [status, setStatus] = useState("Choose Enable webcam to prepare your desktop reaction studio.");
   const [overlay, setOverlay] = useState<Overlay>({ x: 486, y: 120, size: 180 });
+  const [isSourcePaused, setIsSourcePaused] = useState(false);
+  const [bgVolume, setBgVolume] = useState(0.25);
+  const [micVolume, setMicVolume] = useState(1.4);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -121,7 +126,12 @@ export default function DesktopReactionRecordScreen() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
       });
       cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = stream;
@@ -151,17 +161,61 @@ export default function DesktopReactionRecordScreen() {
     audioContextRef.current = context;
     const destination = audioDestinationRef.current ?? context.createMediaStreamDestination();
     audioDestinationRef.current = destination;
+
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-12, context.currentTime);
+    compressor.ratio.setValueAtTime(3.5, context.currentTime);
+    compressor.connect(destination);
+
+    if (!sourceGainRef.current) {
+      const sGain = context.createGain();
+      sGain.gain.value = bgVolume;
+      sourceGainRef.current = sGain;
+      sGain.connect(compressor);
+      sGain.connect(context.destination);
+    } else {
+      sourceGainRef.current.gain.value = bgVolume;
+    }
+
+    if (!micGainRef.current) {
+      const hp = context.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.setValueAtTime(80, context.currentTime);
+
+      const mGain = context.createGain();
+      mGain.gain.value = micVolume;
+      micGainRef.current = mGain;
+
+      hp.connect(mGain);
+      mGain.connect(compressor);
+
+      const micSource = context.createMediaStreamSource(cameraStream);
+      microphoneAudioRef.current = micSource;
+      micSource.connect(hp);
+    } else {
+      micGainRef.current.gain.value = micVolume;
+    }
+
     if (!sourceAudioRef.current) {
       sourceAudioRef.current = context.createMediaElementSource(sourceVideo);
-      sourceAudioRef.current.connect(destination);
-      sourceAudioRef.current.connect(context.destination);
-    }
-    if (!microphoneAudioRef.current) {
-      microphoneAudioRef.current = context.createMediaStreamSource(cameraStream);
-      microphoneAudioRef.current.connect(destination);
+      sourceAudioRef.current.connect(sourceGainRef.current);
     }
     if (context.state === "suspended") await context.resume();
     return destination;
+  }
+
+  function handleBgVolumeChange(val: number) {
+    setBgVolume(val);
+    if (sourceGainRef.current && audioContextRef.current) {
+      sourceGainRef.current.gain.setValueAtTime(val, audioContextRef.current.currentTime);
+    }
+  }
+
+  function handleMicVolumeChange(val: number) {
+    setMicVolume(val);
+    if (micGainRef.current && audioContextRef.current) {
+      micGainRef.current.gain.setValueAtTime(val, audioContextRef.current.currentTime);
+    }
   }
 
   async function startRecording() {
@@ -215,9 +269,10 @@ export default function DesktopReactionRecordScreen() {
         setStatus("Combined desktop reaction created. Opening review…");
         router.replace("/review" as never);
       };
+      setIsSourcePaused(false);
       recorder.start(1_000);
       setRecording(true);
-      setStatus("Recording the source video, webcam bubble, and mixed audio. Click Stop recording when finished.");
+      setStatus("Recording the source video, webcam bubble, and mixed audio. You can pause the background clip anytime to speak.");
     } catch (error) {
       setStatus(`Could not start combined desktop recording: ${error instanceof Error ? error.message : "unknown browser error"}`);
     } finally {
@@ -225,9 +280,27 @@ export default function DesktopReactionRecordScreen() {
     }
   }
 
+  function toggleSourcePause() {
+    const sourceVideo = sourceVideoRef.current;
+    if (!recording || !sourceVideo) return;
+    if (isSourcePaused) {
+      sourceVideo.play().then(() => {
+        setIsSourcePaused(false);
+        setStatus("Background clip resumed while reaction recording continues.");
+      }).catch((e) => {
+        setStatus(`Could not resume clip: ${e instanceof Error ? e.message : "error"}`);
+      });
+    } else {
+      sourceVideo.pause();
+      setIsSourcePaused(true);
+      setStatus("Background clip paused. Your webcam and microphone are still recording so you can talk over this moment.");
+    }
+  }
+
   function stopRecording() {
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") return;
-    setStatus("Finalizing your clean combined reaction video…");
+    setIsSourcePaused(false);
+    setStatus("Finalizing your combined reaction video…");
     mediaRecorderRef.current.stop();
   }
 
@@ -243,7 +316,7 @@ export default function DesktopReactionRecordScreen() {
   }
 
   function startMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (recording || !stageRef.current) return;
+    if (!stageRef.current) return;
     const bounds = stageRef.current.getBoundingClientRect();
     dragOffsetRef.current = {
       x: ((event.clientX - bounds.left) / bounds.width) * OUTPUT_WIDTH - overlay.x,
@@ -253,7 +326,6 @@ export default function DesktopReactionRecordScreen() {
   }
 
   function resizeBubble(event: React.WheelEvent<HTMLDivElement>) {
-    if (recording) return;
     event.preventDefault();
     setOverlay((current) => clampOverlay({ ...current, size: current.size - event.deltaY * 0.45 }));
   }
@@ -303,11 +375,57 @@ export default function DesktopReactionRecordScreen() {
               <strong style={styles.sourceName}>{source.name}</strong>
               <span style={styles.sourceNote}>Local file · never uploaded</span>
             </div>
+
+            <div style={styles.volumeCard}>
+              <span style={styles.sourceLabel}>AUDIO MIXER</span>
+              <div style={styles.volumeRow}>
+                <div style={styles.volumeHeaderRow}>
+                  <label htmlFor="web-bg-volume" style={styles.volumeLabelText}>Background Reel Volume</label>
+                  <span style={styles.volumeValText}>{Math.round(bgVolume * 100)}%</span>
+                </div>
+                <input
+                  id="web-bg-volume"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={bgVolume}
+                  onChange={(e) => handleBgVolumeChange(parseFloat(e.target.value))}
+                  style={styles.slider}
+                />
+              </div>
+
+              <div style={styles.volumeRow}>
+                <div style={styles.volumeHeaderRow}>
+                  <label htmlFor="web-mic-volume" style={styles.volumeLabelText}>Reaction Mic Volume</label>
+                  <span style={styles.volumeValText}>{Math.round((micVolume / 1.4) * 100)}%</span>
+                </div>
+                <input
+                  id="web-mic-volume"
+                  type="range"
+                  min="0.1"
+                  max="3.0"
+                  step="0.05"
+                  value={micVolume}
+                  onChange={(e) => handleMicVolumeChange(parseFloat(e.target.value))}
+                  style={styles.slider}
+                />
+              </div>
+              <span style={styles.volumeHint}>Adjust the audio levels to keep your reaction voice clear over the background clip.</span>
+            </div>
+
             <button type="button" disabled={cameraReady || preparing || recording} onClick={enableCamera} style={{ ...styles.secondaryButton, ...(cameraReady || preparing || recording ? styles.disabledButton : {}) }}>
               {cameraReady ? "Webcam ready" : preparing ? "Preparing webcam…" : "Enable webcam + microphone"}
             </button>
+
+            {recording ? (
+              <button type="button" onClick={toggleSourcePause} style={styles.pauseButton}>
+                {isSourcePaused ? "▶️ Resume background reel" : "⏸️ Pause background reel (Keep talking)"}
+              </button>
+            ) : null}
+
             <button type="button" disabled={!cameraReady || preparing} onClick={recording ? stopRecording : startRecording} style={{ ...styles.primaryButton, ...(!cameraReady || preparing ? styles.disabledButton : {}), ...(recording ? styles.stopButton : {}) }}>
-              {recording ? "Stop recording" : "Start recording"}
+              {recording ? "⏹️ Finish & Get Combined Video" : "Start recording"}
             </button>
             <div style={styles.statusCard}>
               <span style={styles.statusDot} />
@@ -342,7 +460,15 @@ const styles: Record<string, React.CSSProperties> = {
   sourceLabel: { color: "#8792A3", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em" },
   sourceName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15 },
   sourceNote: { color: "#AAB3C2", fontSize: 12 },
+  volumeCard: { display: "grid", gap: 12, padding: 18, background: "#171E2B", border: "1px solid #283244", borderRadius: 18 },
+  volumeRow: { display: "grid", gap: 6 },
+  volumeHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  volumeLabelText: { fontSize: 13, fontWeight: 700, color: "#E1E7F0" },
+  volumeValText: { fontSize: 13, fontWeight: 800, color: "#FF8A6B" },
+  slider: { width: "100%", accentColor: "#FF5C35", cursor: "pointer", height: 6 },
+  volumeHint: { color: "#8792A3", fontSize: 11, lineHeight: 1.4 },
   primaryButton: { width: "100%", border: 0, borderRadius: 16, background: "#FF5C35", color: "#FFFFFF", cursor: "pointer", fontSize: 16, fontWeight: 900, padding: "17px 18px" },
+  pauseButton: { width: "100%", border: "1px solid #FF8A6B", borderRadius: 16, background: "#2A1813", color: "#FFB199", cursor: "pointer", fontSize: 15, fontWeight: 800, padding: "15px 18px" },
   secondaryButton: { width: "100%", border: "1px solid #465267", borderRadius: 16, background: "#171E2B", color: "#F7F8FA", cursor: "pointer", fontSize: 15, fontWeight: 800, padding: "16px 18px" },
   stopButton: { background: "#FFFFFF", color: "#D84325" },
   disabledButton: { cursor: "not-allowed", opacity: 0.46 },

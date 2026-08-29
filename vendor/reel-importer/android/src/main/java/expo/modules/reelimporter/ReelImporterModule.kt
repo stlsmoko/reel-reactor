@@ -22,11 +22,35 @@ class ReelImporterModule : Module() {
         return host == "facebook.com" || host.endsWith(".facebook.com") || host == "fb.watch"
     }
 
+    private fun isInstagramUrl(url: java.net.URL): Boolean {
+        val host = url.host.lowercase()
+        return host == "instagram.com" || host.endsWith(".instagram.com") || host == "instagr.am"
+    }
+
+    private fun isTikTokUrl(url: java.net.URL): Boolean {
+        val host = url.host.lowercase()
+        return host == "tiktok.com" || host.endsWith(".tiktok.com") || host == "vt.tiktok.com" || host == "vm.tiktok.com"
+    }
+
+    private fun isYouTubeUrl(url: java.net.URL): Boolean {
+        val host = url.host.lowercase()
+        return host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be"
+    }
+
+    private fun isTwitterOrXUrl(url: java.net.URL): Boolean {
+        val host = url.host.lowercase()
+        return host == "twitter.com" || host.endsWith(".twitter.com") || host == "x.com" || host.endsWith(".x.com") || host == "t.co"
+    }
+
     private fun importFormatFor(url: java.net.URL): String {
-        // Facebook exposes fully playable progressive MP4 variants as hd/sd.
-        // The prior selector demanded codec metadata that Facebook omits for
-        // these variants, causing valid public share links to fail before download.
-        return if (isFacebookUrl(url)) "hd/sd" else "best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]"
+        return when {
+            isFacebookUrl(url) -> "hd/sd/best[ext=mp4]/best"
+            isInstagramUrl(url) -> "best[ext=mp4]/b/bv*+ba/best"
+            isTikTokUrl(url) -> "download_addr/h264/best[ext=mp4]/best"
+            isYouTubeUrl(url) -> "18/22/best[ext=mp4]/b/bv*+ba/best"
+            isTwitterOrXUrl(url) -> "http-720/http-480/best[ext=mp4]/best"
+            else -> "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/b/bv*+ba/best"
+        }
     }
 
     private fun downloadDetail(error: YoutubeDLException): String {
