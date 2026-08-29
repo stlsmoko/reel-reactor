@@ -42,7 +42,7 @@ jobs:
         run: sdkmanager "cmake;3.22.1"
 
       - name: Install JavaScript dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
