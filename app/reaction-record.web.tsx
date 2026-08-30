@@ -9,6 +9,7 @@ const MIN_OVERLAY_SIZE = 96;
 const MAX_OVERLAY_SIZE = 280;
 
 type Overlay = { x: number; y: number; size: number };
+type OverlayStyle = "circle" | "square" | "green-screen";
 
 function clampOverlay(overlay: Overlay): Overlay {
   const size = Math.max(MIN_OVERLAY_SIZE, Math.min(MAX_OVERLAY_SIZE, overlay.size));
@@ -45,12 +46,15 @@ export default function DesktopReactionRecordScreen() {
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const sourceAudioRef = useRef<MediaElementAudioSourceNode | null>(null);
   const microphoneAudioRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const sourceGainRef = useRef<GainNode | null>(null);
+  const micGainRef = useRef<GainNode | null>(null);
   const frameRef = useRef<number | null>(null);
   const drawSceneRef = useRef<() => void>(() => undefined);
   const chunksRef = useRef<Blob[]>([]);
@@ -59,8 +63,12 @@ export default function DesktopReactionRecordScreen() {
   const [cameraReady, setCameraReady] = useState(false);
   const [recording, setRecording] = useState(false);
   const [preparing, setPreparing] = useState(false);
-  const [status, setStatus] = useState("Choose Enable webcam to prepare your desktop reaction studio.");
+  const [status, setStatus] = useState("Choose Enable webcam & mic to prepare your Apple glass reaction studio.");
   const [overlay, setOverlay] = useState<Overlay>({ x: 486, y: 120, size: 180 });
+  const [overlayStyle, setOverlayStyle] = useState<OverlayStyle>("circle");
+  const [isSourcePaused, setIsSourcePaused] = useState(false);
+  const [bgVolume, setBgVolume] = useState(0.25);
+  const [micVolume, setMicVolume] = useState(1.4);
 
   useEffect(() => {
     if (!source) router.replace("/");
@@ -86,22 +94,83 @@ export default function DesktopReactionRecordScreen() {
 
     if (cameraVideo?.readyState && cameraVideo.videoWidth) {
       context.save();
-      context.beginPath();
-      context.arc(overlay.x + overlay.size / 2, overlay.y + overlay.size / 2, overlay.size / 2, 0, Math.PI * 2);
-      context.clip();
-      context.translate(overlay.x + overlay.size, overlay.y);
-      context.scale(-1, 1);
-      context.drawImage(cameraVideo, 0, 0, overlay.size, overlay.size);
+      const x = overlay.x;
+      const y = overlay.y;
+      const size = overlay.size;
+
+      if (overlayStyle === "circle") {
+        context.beginPath();
+        context.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+        context.clip();
+      } else if (overlayStyle === "square") {
+        context.beginPath();
+        context.roundRect(x, y, size, size, 20);
+        context.clip();
+      }
+
+      if (overlayStyle === "green-screen") {
+        // Green screen chroma keying on canvas
+        if (!offscreenCanvasRef.current) {
+          const off = document.createElement("canvas");
+          off.width = size;
+          off.height = size;
+          offscreenCanvasRef.current = off;
+        }
+        const off = offscreenCanvasRef.current;
+        if (off.width !== size || off.height !== size) {
+          off.width = size;
+          off.height = size;
+        }
+        const offCtx = off.getContext("2d");
+        if (offCtx) {
+          offCtx.clearRect(0, 0, size, size);
+          offCtx.save();
+          offCtx.translate(size, 0);
+          offCtx.scale(-1, 1);
+          offCtx.drawImage(cameraVideo, 0, 0, size, size);
+          offCtx.restore();
+
+          const imgData = offCtx.getImageData(0, 0, size, size);
+          const data = imgData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            // Simple chroma key for green background
+            if (g > 85 && g > r * 1.25 && g > b * 1.25) {
+              data[i + 3] = 0; // make transparent
+            }
+          }
+          offCtx.putImageData(imgData, 0, 0);
+          context.drawImage(off, x, y);
+        }
+      } else {
+        context.translate(x + size, y);
+        context.scale(-1, 1);
+        context.drawImage(cameraVideo, 0, 0, size, size);
+      }
+
       context.restore();
-      context.lineWidth = 8;
-      context.strokeStyle = "#FFFFFF";
-      context.beginPath();
-      context.arc(overlay.x + overlay.size / 2, overlay.y + overlay.size / 2, overlay.size / 2 - 4, 0, Math.PI * 2);
-      context.stroke();
+
+      if (overlayStyle !== "green-screen") {
+        context.save();
+        context.lineWidth = 6;
+        context.strokeStyle = "rgba(255, 255, 255, 0.9)";
+        if (overlayStyle === "circle") {
+          context.beginPath();
+          context.arc(x + size / 2, y + size / 2, size / 2 - 3, 0, Math.PI * 2);
+          context.stroke();
+        } else if (overlayStyle === "square") {
+          context.beginPath();
+          context.roundRect(x + 3, y + 3, size - 6, size - 6, 17);
+          context.stroke();
+        }
+        context.restore();
+      }
     }
 
     frameRef.current = requestAnimationFrame(() => drawSceneRef.current());
-  }, [overlay]);
+  }, [overlay, overlayStyle]);
 
   useEffect(() => {
     drawSceneRef.current = drawScene;
@@ -121,7 +190,12 @@ export default function DesktopReactionRecordScreen() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        },
       });
       cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = stream;
@@ -130,7 +204,7 @@ export default function DesktopReactionRecordScreen() {
         await cameraVideoRef.current.play();
       }
       setCameraReady(true);
-      setStatus("Webcam and microphone are ready. Drag the bubble, scroll over it to resize, then Start recording.");
+      setStatus("Webcam and microphone are ready with Apple glass UI. Drag the reaction bubble, scroll to resize, then Start recording.");
       drawScene();
     } catch (error) {
       setStatus(`Webcam or microphone access failed: ${error instanceof Error ? error.message : "unknown browser error"}`);
@@ -151,17 +225,61 @@ export default function DesktopReactionRecordScreen() {
     audioContextRef.current = context;
     const destination = audioDestinationRef.current ?? context.createMediaStreamDestination();
     audioDestinationRef.current = destination;
+
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-12, context.currentTime);
+    compressor.ratio.setValueAtTime(3.5, context.currentTime);
+    compressor.connect(destination);
+
+    if (!sourceGainRef.current) {
+      const sGain = context.createGain();
+      sGain.gain.value = bgVolume;
+      sourceGainRef.current = sGain;
+      sGain.connect(compressor);
+      sGain.connect(context.destination);
+    } else {
+      sourceGainRef.current.gain.value = bgVolume;
+    }
+
+    if (!micGainRef.current) {
+      const hp = context.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.setValueAtTime(80, context.currentTime);
+
+      const mGain = context.createGain();
+      mGain.gain.value = micVolume;
+      micGainRef.current = mGain;
+
+      hp.connect(mGain);
+      mGain.connect(compressor);
+
+      const micSource = context.createMediaStreamSource(cameraStream);
+      microphoneAudioRef.current = micSource;
+      micSource.connect(hp);
+    } else {
+      micGainRef.current.gain.value = micVolume;
+    }
+
     if (!sourceAudioRef.current) {
       sourceAudioRef.current = context.createMediaElementSource(sourceVideo);
-      sourceAudioRef.current.connect(destination);
-      sourceAudioRef.current.connect(context.destination);
-    }
-    if (!microphoneAudioRef.current) {
-      microphoneAudioRef.current = context.createMediaStreamSource(cameraStream);
-      microphoneAudioRef.current.connect(destination);
+      sourceAudioRef.current.connect(sourceGainRef.current);
     }
     if (context.state === "suspended") await context.resume();
     return destination;
+  }
+
+  function handleBgVolumeChange(val: number) {
+    setBgVolume(val);
+    if (sourceGainRef.current && audioContextRef.current) {
+      sourceGainRef.current.gain.setValueAtTime(val, audioContextRef.current.currentTime);
+    }
+  }
+
+  function handleMicVolumeChange(val: number) {
+    setMicVolume(val);
+    if (micGainRef.current && audioContextRef.current) {
+      micGainRef.current.gain.setValueAtTime(val, audioContextRef.current.currentTime);
+    }
   }
 
   async function startRecording() {
@@ -177,7 +295,7 @@ export default function DesktopReactionRecordScreen() {
     }
 
     setPreparing(true);
-    setStatus("Preparing clean combined desktop recording…");
+    setStatus("Preparing Apple glass reaction recording with mixed audio…");
     try {
       const destination = await ensureAudioGraph();
       sourceVideo.currentTime = 0;
@@ -196,7 +314,7 @@ export default function DesktopReactionRecordScreen() {
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
-      recorder.onerror = () => setStatus("Desktop recording failed in the browser. No camera-only output was created.");
+      recorder.onerror = () => setStatus("Desktop recording failed in the browser.");
       recorder.onstop = () => {
         if (frameRef.current !== null) {
           cancelAnimationFrame(frameRef.current);
@@ -205,29 +323,48 @@ export default function DesktopReactionRecordScreen() {
         sourceVideo.pause();
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "video/webm" });
         if (blob.size < 1_024) {
-          setStatus("Desktop recording stopped without enough video data. Try again after the source preview starts.");
+          setStatus("Desktop recording stopped without enough video data. Try again.");
           setRecording(false);
           return;
         }
         const outputUri = URL.createObjectURL(blob);
         setCurrentReaction({ uri: outputUri, recordedAt: Date.now(), isComposite: true });
         setRecording(false);
-        setStatus("Combined desktop reaction created. Opening review…");
+        setStatus("Apple glass reaction created successfully. Opening review…");
         router.replace("/review" as never);
       };
+      setIsSourcePaused(false);
       recorder.start(1_000);
       setRecording(true);
-      setStatus("Recording the source video, webcam bubble, and mixed audio. Click Stop recording when finished.");
+      setStatus("Recording live reaction with Apple glass UI, camera feed, and independent audio mix!");
     } catch (error) {
-      setStatus(`Could not start combined desktop recording: ${error instanceof Error ? error.message : "unknown browser error"}`);
+      setStatus(`Could not start recording: ${error instanceof Error ? error.message : "unknown error"}`);
     } finally {
       setPreparing(false);
     }
   }
 
+  function toggleSourcePause() {
+    const sourceVideo = sourceVideoRef.current;
+    if (!recording || !sourceVideo) return;
+    if (isSourcePaused) {
+      sourceVideo.play().then(() => {
+        setIsSourcePaused(false);
+        setStatus("Background reel resumed while reaction recording continues.");
+      }).catch((e) => {
+        setStatus(`Could not resume clip: ${e instanceof Error ? e.message : "error"}`);
+      });
+    } else {
+      sourceVideo.pause();
+      setIsSourcePaused(true);
+      setStatus("Background reel paused. Your webcam and mic continue recording so you can talk freely.");
+    }
+  }
+
   function stopRecording() {
     if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") return;
-    setStatus("Finalizing your clean combined reaction video…");
+    setIsSourcePaused(false);
+    setStatus("Finalizing your Apple glass reaction video…");
     mediaRecorderRef.current.stop();
   }
 
@@ -243,7 +380,7 @@ export default function DesktopReactionRecordScreen() {
   }
 
   function startMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (recording || !stageRef.current) return;
+    if (!stageRef.current) return;
     const bounds = stageRef.current.getBoundingClientRect();
     dragOffsetRef.current = {
       x: ((event.clientX - bounds.left) / bounds.width) * OUTPUT_WIDTH - overlay.x,
@@ -253,7 +390,6 @@ export default function DesktopReactionRecordScreen() {
   }
 
   function resizeBubble(event: React.WheelEvent<HTMLDivElement>) {
-    if (recording) return;
     event.preventDefault();
     setOverlay((current) => clampOverlay({ ...current, size: current.size - event.deltaY * 0.45 }));
   }
@@ -265,9 +401,9 @@ export default function DesktopReactionRecordScreen() {
       <section style={styles.content}>
         <header style={styles.header}>
           <div>
-            <div style={styles.eyebrow}>DESKTOP REACTION STUDIO</div>
-            <h1 style={styles.title}>React while the video rolls.</h1>
-            <p style={styles.subtitle}>Your exported file contains the source clip, webcam bubble, source audio, and microphone audio.</p>
+            <div style={styles.eyebrow}>REEL REACTOR · APPLE GLASS STUDIO</div>
+            <h1 style={styles.title}>React with green screen & glass UI.</h1>
+            <p style={styles.subtitle}>Professional reaction suite featuring live chroma keying, Apple glassmorphic translucency, and independent dual audio track mixing.</p>
           </div>
           <button type="button" onClick={() => router.replace("/")} style={styles.backButton}>Change video</button>
         </header>
@@ -279,6 +415,7 @@ export default function DesktopReactionRecordScreen() {
               <div
                 style={{
                   ...styles.cameraBubble,
+                  borderRadius: overlayStyle === "circle" ? "50%" : "22px",
                   left: `${(overlay.x / OUTPUT_WIDTH) * 100}%`,
                   top: `${(overlay.y / OUTPUT_HEIGHT) * 100}%`,
                   width: `${(overlay.size / OUTPUT_WIDTH) * 100}%`,
@@ -292,28 +429,97 @@ export default function DesktopReactionRecordScreen() {
                 <video ref={cameraVideoRef} muted playsInline style={{ ...styles.cameraPreview, display: cameraReady ? "block" : "none" }} />
                 {!cameraReady ? <span style={styles.cameraPlaceholder}>Enable webcam</span> : null}
               </div>
-              <span style={styles.dragHint}>Drag to move · scroll to resize</span>
+              <span style={styles.dragHint}>Drag bubble to position · Scroll to resize</span>
             </div>
             <canvas ref={canvasRef} width={OUTPUT_WIDTH} height={OUTPUT_HEIGHT} style={styles.hiddenCanvas} />
           </div>
 
           <aside style={styles.controls}>
-            <div style={styles.sourceCard}>
+            <div style={styles.glassCard}>
               <span style={styles.sourceLabel}>SOURCE VIDEO</span>
               <strong style={styles.sourceName}>{source.name}</strong>
-              <span style={styles.sourceNote}>Local file · never uploaded</span>
+              <span style={styles.sourceNote}>Local file · Secure client session</span>
             </div>
+
+            <div style={styles.glassCard}>
+              <span style={styles.sourceLabel}>REACTION STYLE</span>
+              <div style={styles.styleRow}>
+                {(["circle", "square", "green-screen"] as OverlayStyle[]).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setOverlayStyle(st)}
+                    style={{
+                      ...styles.styleButton,
+                      ...(overlayStyle === st ? styles.styleButtonActive : {}),
+                    }}
+                  >
+                    {st === "circle" ? "Bubble" : st === "square" ? "Square" : "Green Screen"}
+                  </button>
+                ))}
+              </div>
+              {overlayStyle === "green-screen" && (
+                <span style={styles.volumeHint}>Green screen mode keys out green backgrounds in real time for clean cutout reactions.</span>
+              )}
+            </div>
+
+            <div style={styles.glassCard}>
+              <span style={styles.sourceLabel}>AUDIO MIXER (BOTH TRACKS)</span>
+              
+              <div style={styles.volumeRow}>
+                <div style={styles.volumeHeaderRow}>
+                  <label htmlFor="web-bg-volume" style={styles.volumeLabelText}>Background Reel Volume</label>
+                  <span style={styles.volumeValText}>{Math.round(bgVolume * 100)}%</span>
+                </div>
+                <input
+                  id="web-bg-volume"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={bgVolume}
+                  onChange={(e) => handleBgVolumeChange(parseFloat(e.target.value))}
+                  style={styles.slider}
+                />
+              </div>
+
+              <div style={styles.volumeRow}>
+                <div style={styles.volumeHeaderRow}>
+                  <label htmlFor="web-mic-volume" style={styles.volumeLabelText}>Reaction Mic Volume</label>
+                  <span style={styles.volumeValText}>{Math.round((micVolume / 1.4) * 100)}%</span>
+                </div>
+                <input
+                  id="web-mic-volume"
+                  type="range"
+                  min="0.1"
+                  max="3.0"
+                  step="0.05"
+                  value={micVolume}
+                  onChange={(e) => handleMicVolumeChange(parseFloat(e.target.value))}
+                  style={styles.slider}
+                />
+              </div>
+              <span style={styles.volumeHint}>Independent volume controls ensure your voice stays crisp and prominent over background audio.</span>
+            </div>
+
             <button type="button" disabled={cameraReady || preparing || recording} onClick={enableCamera} style={{ ...styles.secondaryButton, ...(cameraReady || preparing || recording ? styles.disabledButton : {}) }}>
-              {cameraReady ? "Webcam ready" : preparing ? "Preparing webcam…" : "Enable webcam + microphone"}
+              {cameraReady ? "Apple glass webcam ready" : preparing ? "Preparing webcam & mic…" : "Enable webcam + microphone"}
             </button>
+
+            {recording ? (
+              <button type="button" onClick={toggleSourcePause} style={styles.pauseButton}>
+                {isSourcePaused ? "▶️ Resume background reel" : "⏸️ Pause background reel (Keep talking)"}
+              </button>
+            ) : null}
+
             <button type="button" disabled={!cameraReady || preparing} onClick={recording ? stopRecording : startRecording} style={{ ...styles.primaryButton, ...(!cameraReady || preparing ? styles.disabledButton : {}), ...(recording ? styles.stopButton : {}) }}>
-              {recording ? "Stop recording" : "Start recording"}
+              {recording ? "⏹️ Finish & Get Glass Reaction Video" : "Start recording"}
             </button>
+
             <div style={styles.statusCard}>
               <span style={styles.statusDot} />
               <span>{status}</span>
             </div>
-            <p style={styles.browserNote}>Desktop export uses your browser’s recorder. Chrome and Edge export a downloadable WebM file; the phone build continues to export MP4.</p>
           </aside>
         </div>
       </section>
@@ -322,31 +528,40 @@ export default function DesktopReactionRecordScreen() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#0C1018", color: "#F7F8FA", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" },
-  content: { width: "min(1220px, calc(100% - 48px))", margin: "0 auto", padding: "42px 0 58px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 28, marginBottom: 30 },
-  eyebrow: { color: "#FF8A6B", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", marginBottom: 10 },
-  title: { fontSize: "clamp(32px, 4vw, 52px)", margin: 0, letterSpacing: "-0.05em", lineHeight: 1 },
-  subtitle: { maxWidth: 620, color: "#AAB3C2", fontSize: 16, lineHeight: 1.5, margin: "14px 0 0" },
-  backButton: { background: "transparent", border: "1px solid #465267", borderRadius: 12, color: "#F7F8FA", cursor: "pointer", fontWeight: 700, padding: "12px 15px" },
-  studioGrid: { display: "grid", gridTemplateColumns: "minmax(330px, 650px) minmax(280px, 1fr)", alignItems: "start", gap: 28 },
-  stage: { position: "relative", overflow: "hidden", width: "100%", aspectRatio: "9 / 16", maxHeight: "calc(100vh - 210px)", background: "#000", borderRadius: 24, border: "1px solid #283244", boxShadow: "0 30px 80px rgba(0,0,0,0.35)" },
+  page: { minHeight: "100vh", background: "#080B11", color: "#F7F8FA", fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', Inter, sans-serif" },
+  content: { width: "min(1240px, calc(100% - 48px))", margin: "0 auto", padding: "48px 0 64px" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 28, marginBottom: 32 },
+  eyebrow: { color: "#38BDF8", fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", marginBottom: 10 },
+  title: { fontSize: "clamp(32px, 4vw, 48px)", margin: 0, letterSpacing: "-0.03em", lineHeight: 1.1, fontWeight: 700 },
+  subtitle: { maxWidth: 640, color: "#94A3B8", fontSize: 16, lineHeight: 1.5, margin: "14px 0 0" },
+  backButton: { background: "rgba(255, 255, 255, 0.06)", backdropFilter: "blur(12px)", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: 12, color: "#F7F8FA", cursor: "pointer", fontWeight: 600, padding: "12px 18px", transition: "all 0.2s" },
+  studioGrid: { display: "grid", gridTemplateColumns: "minmax(340px, 640px) minmax(300px, 1fr)", alignItems: "start", gap: 32 },
+  stage: { position: "relative", overflow: "hidden", width: "100%", aspectRatio: "9 / 16", maxHeight: "calc(100vh - 180px)", background: "#000", borderRadius: 28, border: "1px solid rgba(255, 255, 255, 0.18)", boxShadow: "0 30px 90px rgba(0,0,0,0.5)" },
   sourcePreview: { width: "100%", height: "100%", objectFit: "contain", background: "#000" },
-  cameraBubble: { position: "absolute", display: "grid", placeItems: "center", overflow: "hidden", borderRadius: "50%", border: "4px solid #FFFFFF", background: "#171E2B", cursor: "grab", touchAction: "none", boxShadow: "0 12px 34px rgba(0,0,0,0.5)" },
+  cameraBubble: { position: "absolute", display: "grid", placeItems: "center", overflow: "hidden", border: "4px solid rgba(255,255,255,0.95)", background: "rgba(23,30,43,0.85)", backdropFilter: "blur(16px)", cursor: "grab", touchAction: "none", boxShadow: "0 16px 40px rgba(0,0,0,0.6)" },
   cameraPreview: { width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", pointerEvents: "none" },
-  cameraPlaceholder: { color: "#FFB199", fontWeight: 800, fontSize: 12, textAlign: "center", padding: 10 },
-  dragHint: { position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 16, borderRadius: 999, background: "rgba(12,16,24,0.76)", color: "#FFFFFF", fontSize: 12, fontWeight: 700, padding: "8px 12px", pointerEvents: "none" },
+  cameraPlaceholder: { color: "#38BDF8", fontWeight: 700, fontSize: 12, textAlign: "center", padding: 10 },
+  dragHint: { position: "absolute", left: "50%", transform: "translateX(-50%)", bottom: 18, borderRadius: 999, background: "rgba(10, 14, 23, 0.8)", backdropFilter: "blur(16px)", border: "1px solid rgba(255, 255, 255, 0.15)", color: "#FFFFFF", fontSize: 12, fontWeight: 600, padding: "8px 16px", pointerEvents: "none" },
   hiddenCanvas: { display: "none" },
-  controls: { display: "grid", gap: 12, position: "sticky", top: 28 },
-  sourceCard: { display: "grid", gap: 6, padding: 18, background: "#171E2B", border: "1px solid #283244", borderRadius: 18 },
-  sourceLabel: { color: "#8792A3", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em" },
-  sourceName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15 },
-  sourceNote: { color: "#AAB3C2", fontSize: 12 },
-  primaryButton: { width: "100%", border: 0, borderRadius: 16, background: "#FF5C35", color: "#FFFFFF", cursor: "pointer", fontSize: 16, fontWeight: 900, padding: "17px 18px" },
-  secondaryButton: { width: "100%", border: "1px solid #465267", borderRadius: 16, background: "#171E2B", color: "#F7F8FA", cursor: "pointer", fontSize: 15, fontWeight: 800, padding: "16px 18px" },
-  stopButton: { background: "#FFFFFF", color: "#D84325" },
-  disabledButton: { cursor: "not-allowed", opacity: 0.46 },
-  statusCard: { display: "flex", gap: 10, alignItems: "flex-start", padding: 14, borderRadius: 14, background: "#121823", color: "#C1C9D4", fontSize: 13, lineHeight: 1.45 },
-  statusDot: { flex: "0 0 auto", width: 8, height: 8, borderRadius: "50%", background: "#36C98A", marginTop: 5 },
-  browserNote: { color: "#8792A3", fontSize: 12, lineHeight: 1.55, margin: "2px 2px 0" },
+  controls: { display: "grid", gap: 14, position: "sticky", top: 28 },
+  glassCard: { display: "grid", gap: 10, padding: 20, background: "rgba(255, 255, 255, 0.04)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(255, 255, 255, 0.12)", borderRadius: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.3)" },
+  sourceLabel: { color: "#38BDF8", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em" },
+  sourceName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, fontWeight: 600 },
+  sourceNote: { color: "#94A3B8", fontSize: 12 },
+  styleRow: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
+  styleButton: { background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: 10, color: "#94A3B8", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "10px 6px", textAlign: "center" },
+  styleButtonActive: { background: "#38BDF8", borderColor: "#38BDF8", color: "#080B11" },
+  volumeRow: { display: "grid", gap: 6 },
+  volumeHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  volumeLabelText: { fontSize: 13, fontWeight: 600, color: "#E2E8F0" },
+  volumeValText: { fontSize: 13, fontWeight: 700, color: "#38BDF8" },
+  slider: { width: "100%", accentColor: "#38BDF8", cursor: "pointer", height: 6 },
+  volumeHint: { color: "#94A3B8", fontSize: 11, lineHeight: 1.4 },
+  primaryButton: { width: "100%", border: 0, borderRadius: 16, background: "linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)", color: "#FFFFFF", cursor: "pointer", fontSize: 16, fontWeight: 700, padding: "17px 18px", boxShadow: "0 8px 25px rgba(56, 189, 248, 0.3)" },
+  pauseButton: { width: "100%", border: "1px solid rgba(56, 189, 248, 0.3)", borderRadius: 16, background: "rgba(56, 189, 248, 0.1)", color: "#38BDF8", cursor: "pointer", fontSize: 15, fontWeight: 600, padding: "15px 18px" },
+  secondaryButton: { width: "100%", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: 16, background: "rgba(255, 255, 255, 0.06)", backdropFilter: "blur(12px)", color: "#F7F8FA", cursor: "pointer", fontSize: 15, fontWeight: 600, padding: "16px 18px" },
+  stopButton: { background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)", color: "#FFFFFF", boxShadow: "0 8px 25px rgba(239, 68, 68, 0.3)" },
+  disabledButton: { cursor: "not-allowed", opacity: 0.45 },
+  statusCard: { display: "flex", gap: 10, alignItems: "center", padding: 14, borderRadius: 14, background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.08)", color: "#CBD5E1", fontSize: 13, lineHeight: 1.4 },
+  statusDot: { flex: "0 0 auto", width: 8, height: 8, borderRadius: "50%", background: "#10B981" },
 };
