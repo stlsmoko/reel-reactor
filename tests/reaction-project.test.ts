@@ -65,8 +65,15 @@ describe("recording start availability", () => {
 });
 
 describe("shared-link intake", () => {
-  it("accepts a copied HTTP URL", () => {
-    expect(normalizeSharedLink(" https://www.instagram.com/reel/example ")).toBe("https://www.instagram.com/reel/example");
+  it("accepts copied public links from the supported social platforms", () => {
+    const urls = [
+      "https://www.facebook.com/reel/example",
+      "https://www.instagram.com/reel/example",
+      "https://www.tiktok.com/@creator/video/123",
+      "https://www.youtube.com/watch?v=example",
+      "https://x.com/creator/status/123",
+    ];
+    for (const url of urls) expect(normalizeSharedLink(` ${url} `)).toBe(url);
   });
 
   it("does not treat non-web content as a shareable social link", () => {

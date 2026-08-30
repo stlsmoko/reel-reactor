@@ -61,8 +61,9 @@ describe("composite command", () => {
     };
 
     expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.24 }).filter).toContain("[source_audio]volume=0.24[source_audio_scaled]");
-    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.9 }).filter).toContain("[source_audio]volume=0.4[source_audio_scaled]");
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.9 }).filter).toContain("[source_audio]volume=0.9[source_audio_scaled]");
     expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: -0.1 }).filter).toContain("[source_audio]volume=0[source_audio_scaled]");
+    expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 2 }).filter).toContain("[source_audio]volume=1[source_audio_scaled]");
     expect(buildCompositeCommand({ ...baseRequest, sourceAudioGain: 0.24 }).filter).toContain("volume=2.8");
   });
 

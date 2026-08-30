@@ -30,42 +30,22 @@ function formatRecordingTime(totalSeconds: number) {
 }
 
 const MIN_SOURCE_AUDIO_GAIN = 0;
-const MAX_SOURCE_AUDIO_GAIN = 1.0;
-const DEFAULT_SOURCE_AUDIO_GAIN = 0.25;
+const MAX_SOURCE_AUDIO_GAIN = 1;
+const DEFAULT_SOURCE_AUDIO_GAIN = 0.12;
 
-const MIN_REACTION_AUDIO_GAIN = 0.2;
-const MAX_REACTION_AUDIO_GAIN = 4.0;
-const DEFAULT_REACTION_AUDIO_GAIN = 2.8;
-
-function VolumeSlider({
-  value,
-  min = 0,
-  max = 1.0,
-  onChange,
-}: {
-  value: number;
-  min?: number;
-  max?: number;
-  onChange: (nextValue: number) => void;
-}) {
+function BackgroundVolumeSlider({ value, onChange }: { value: number; onChange: (nextValue: number) => void }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
-      if (trackWidth > 0) {
-        const ratio = Math.max(0, Math.min(1, event.nativeEvent.locationX / trackWidth));
-        onChange(min + ratio * (max - min));
-      }
+      if (trackWidth > 0) onChange(Math.max(MIN_SOURCE_AUDIO_GAIN, Math.min(MAX_SOURCE_AUDIO_GAIN, (event.nativeEvent.locationX / trackWidth) * MAX_SOURCE_AUDIO_GAIN)));
     },
     onPanResponderMove: (event) => {
-      if (trackWidth > 0) {
-        const ratio = Math.max(0, Math.min(1, event.nativeEvent.locationX / trackWidth));
-        onChange(min + ratio * (max - min));
-      }
+      if (trackWidth > 0) onChange(Math.max(MIN_SOURCE_AUDIO_GAIN, Math.min(MAX_SOURCE_AUDIO_GAIN, (event.nativeEvent.locationX / trackWidth) * MAX_SOURCE_AUDIO_GAIN)));
     },
-  }), [max, min, onChange, trackWidth]);
-  const percentage = Math.round(((value - min) / (max - min)) * 100);
+  }), [onChange, trackWidth]);
+  const percentage = Math.round((value / MAX_SOURCE_AUDIO_GAIN) * 100);
 
   return (
     <View style={styles.volumeSliderWrap}>
@@ -116,7 +96,7 @@ export default function ReactionRecordScreen() {
   const [studioSize, setStudioSize] = useState({ width, height });
   const [isSourcePaused, setIsSourcePaused] = useState(false);
   const [sourceAudioGain, setSourceAudioGain] = useState(DEFAULT_SOURCE_AUDIO_GAIN);
-  const [reactionAudioGain, setReactionAudioGain] = useState(DEFAULT_REACTION_AUDIO_GAIN);
+  const sourceAudioGainRef = useRef(DEFAULT_SOURCE_AUDIO_GAIN);
   const [, setSourcePauses] = useState<SourcePause[]>([]);
   const recordAttempt = useRef(0);
   const dragStart = useRef<OverlayPosition>(overlayPosition);
@@ -151,9 +131,18 @@ export default function ReactionRecordScreen() {
     }
   }, [observedSourceTime]);
 
+  function handleSourceAudioGainChange(nextValue: number) {
+    const boundedValue = Math.max(MIN_SOURCE_AUDIO_GAIN, Math.min(MAX_SOURCE_AUDIO_GAIN, nextValue));
+    sourceAudioGainRef.current = boundedValue;
+    setSourceAudioGain(boundedValue);
+    if (!isSourcePaused && !isCompositing) {
+      playerRef.current.volume = boundedValue;
+    }
+  }
+
   useEffect(() => {
-    if (!isSourcePaused) playerRef.current.volume = sourceAudioGain;
-  }, [isSourcePaused, sourceAudioGain]);
+    if (!isSourcePaused && !isCompositing) playerRef.current.volume = sourceAudioGainRef.current;
+  }, [isCompositing, isSourcePaused, sourceAudioGain]);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -243,10 +232,10 @@ export default function ReactionRecordScreen() {
   // React Native invokes these responder callbacks after a touch event, never during render.
   // eslint-disable-next-line react-hooks/refs
   const overlayResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => !isCompositing,
-    onStartShouldSetPanResponderCapture: () => !isCompositing,
-    onMoveShouldSetPanResponder: () => !isCompositing,
-    onMoveShouldSetPanResponderCapture: () => !isCompositing,
+    onStartShouldSetPanResponder: () => !isRecording && !isCompositing,
+    onStartShouldSetPanResponderCapture: () => !isRecording && !isCompositing,
+    onMoveShouldSetPanResponder: () => !isRecording && !isCompositing,
+    onMoveShouldSetPanResponderCapture: () => !isRecording && !isCompositing,
     onPanResponderGrant: (event) => {
       dragStart.current = overlayPositionRef.current;
       pinchStartDistance.current = getTouchDistance(event.nativeEvent.touches);
@@ -291,7 +280,7 @@ export default function ReactionRecordScreen() {
       setOverlayGestureStatus("Camera bubble updated");
     },
     onPanResponderTerminationRequest: () => false,
-  }), [isCompositing, overlayRect]);
+  }), [isCompositing, isRecording, overlayRect]);
 
   async function ensurePermissions() {
     const camera = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -446,8 +435,7 @@ export default function ReactionRecordScreen() {
           overlayStyle,
           sourcePauses: completedSourcePauses,
           stopDurationSec: recordingStopDurationSecRef.current ?? undefined,
-          sourceAudioGain,
-          reactionAudioGain,
+          sourceAudioGain: sourceAudioGainRef.current,
           onProgress: (processedMs) => setRecordingStatus(`Rendering merged video… ${Math.floor(processedMs / 1000)}s processed`),
         });
         setCurrentReaction({ uri: compositeUri, recordedAt: Date.now(), isComposite: true });
@@ -574,16 +562,10 @@ export default function ReactionRecordScreen() {
             {!isCompositing ? <View style={styles.volumeControl}>
               <View style={styles.volumeHeader}>
                 <Text style={styles.volumeLabel}>BACKGROUND REEL AUDIO</Text>
-                <Text style={styles.volumeValue}>{Math.round(sourceAudioGain * 100)}%</Text>
+                <Text style={styles.volumeValue}>{Math.round((sourceAudioGain / MAX_SOURCE_AUDIO_GAIN) * 100)}%</Text>
               </View>
-              <VolumeSlider value={sourceAudioGain} min={MIN_SOURCE_AUDIO_GAIN} max={MAX_SOURCE_AUDIO_GAIN} onChange={setSourceAudioGain} />
-              
-              <View style={[styles.volumeHeader, { marginTop: 12 }]}>
-                <Text style={styles.volumeLabel}>REACTION OVERLAY MIC AUDIO</Text>
-                <Text style={styles.volumeValue}>{Math.round((reactionAudioGain / DEFAULT_REACTION_AUDIO_GAIN) * 100)}%</Text>
-              </View>
-              <VolumeSlider value={reactionAudioGain} min={MIN_REACTION_AUDIO_GAIN} max={MAX_REACTION_AUDIO_GAIN} onChange={setReactionAudioGain} />
-              <Text style={styles.volumeHint}>Adjust background and reaction overlay audio independently so your voice stays clear.</Text>
+              <BackgroundVolumeSlider value={sourceAudioGain} onChange={handleSourceAudioGainChange} />
+              <Text style={styles.volumeHint}>Lower the reel to keep your reaction clear. This level is used in the final export.</Text>
             </View> : null}
             {isRecording ? <Pressable onPress={toggleSourcePause} style={({ pressed }) => [styles.sourcePauseButton, pressed && styles.recordPressed]}>
               <MaterialIcons name={isSourcePaused ? "play-arrow" : "pause"} size={22} color="#FFFFFF" />
@@ -616,7 +598,7 @@ export default function ReactionRecordScreen() {
               <MaterialIcons name="refresh" size={16} color="#FFB199" />
               <Text style={styles.retryCameraLabel}>Retry camera</Text>
             </Pressable> : null}
-            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.24"}</Text>
+            <Text style={styles.buildLabel}>{isBrowserPreview ? "BROWSER PREVIEW · RECORDING IS PHONE-ONLY" : "NATIVE COMPOSITE ONLY · v1.0.25"}</Text>
           </ScrollView>
         </View> : null}
 

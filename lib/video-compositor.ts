@@ -12,7 +12,6 @@ export type CompositeRequest = {
   sourcePauses?: { sourceTimeSec: number; durationSec: number }[];
   stopDurationSec?: number;
   sourceAudioGain?: number;
-  reactionAudioGain?: number;
   onProgress?: (processedMs: number) => void;
 };
 

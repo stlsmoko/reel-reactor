@@ -188,3 +188,7 @@
 - [x] Add a reachable background-reel volume slider to the reaction studio
 - [x] Use the selected background volume for live monitoring and the exported FFmpeg mix while preserving reaction microphone gain
 - [ ] Validate slider bounds, compositor audio output, and package the feature into a new standalone Android APK
+
+- [x] Make the Background Reel Audio slider apply its value during live monitoring and final export, not just update its label
+- [x] Generalize on-device public-link downloading beyond Facebook to Instagram, TikTok, YouTube, X/Twitter, and other yt-dlp-supported sites
+- [ ] Add multi-site link validation and package the repair into a new standalone Android APK
